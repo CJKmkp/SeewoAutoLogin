@@ -26,7 +26,6 @@ namespace SeewoAutoLogin
             AccountListBox.Items.Clear();
             foreach (var account in _plugin.Config.Accounts)
             {
-                var isActive = account.Id == _plugin.Config.ActiveAccountId;
                 var item = new ListBoxItem
                 {
                     Tag = account,
@@ -39,37 +38,25 @@ namespace SeewoAutoLogin
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                // 左侧：名称 + 状态
+                // 左侧：名称 + 用户名
                 var infoPanel = new StackPanel();
                 var nameText = new TextBlock
                 {
                     Text = account.DisplayName ?? account.Username,
-                    FontSize = 14, FontWeight = isActive ? FontWeights.SemiBold : FontWeights.Normal
+                    FontSize = 14, FontWeight = FontWeights.Normal
                 };
                 var statusText = new TextBlock
                 {
-                    Text = isActive ? "✓ 当前使用" : account.Username,
-                    FontSize = 11, Foreground = isActive
-                        ? new SolidColorBrush((Color)Application.Current.FindResource("SystemAccentColor"))
-                        : TryFindResource("TextFillColorSecondaryBrush") as SolidColorBrush ?? Brushes.Gray
+                    Text = account.Username,
+                    FontSize = 11,
+                    Foreground = TryFindResource("TextFillColorSecondaryBrush") as SolidColorBrush ?? Brushes.Gray
                 };
                 infoPanel.Children.Add(nameText);
                 infoPanel.Children.Add(statusText);
                 Grid.SetColumn(infoPanel, 0);
                 grid.Children.Add(infoPanel);
 
-                // 右侧：操作按钮
-                var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
-                if (!isActive)
-                {
-                    var switchBtn = new Button
-                    {
-                        Content = "切换", Padding = new Thickness(8, 4, 8, 4),
-                        Margin = new Thickness(0, 0, 4, 0), Tag = account
-                    };
-                    switchBtn.Click += SwitchAccount_Click;
-                    btnPanel.Children.Add(switchBtn);
-                }
+                // 右侧：删除按钮
                 var deleteBtn = new Button
                 {
                     Padding = new Thickness(6, 4, 6, 4), Tag = account, ToolTip = "删除"
@@ -79,9 +66,8 @@ namespace SeewoAutoLogin
                 {
                     Icon = iNKORE.UI.WPF.Modern.Common.IconKeys.SegoeFluentIcons.Delete, FontSize = 12
                 };
-                btnPanel.Children.Add(deleteBtn);
-                Grid.SetColumn(btnPanel, 1);
-                grid.Children.Add(btnPanel);
+                Grid.SetColumn(deleteBtn, 1);
+                grid.Children.Add(deleteBtn);
 
                 item.Content = grid;
                 AccountListBox.Items.Add(item);
@@ -108,18 +94,6 @@ namespace SeewoAutoLogin
 
         private void AccountListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // 点击账号列表项不做任何操作
-        }
-
-        private void SwitchAccount_Click(object sender, RoutedEventArgs e)
-        {
-            var btn = sender as FrameworkElement;
-            var account = btn?.Tag as SeewoAccount;
-            if (account == null) return;
-
-            _plugin.SetActiveAccount(account.Id);
-            _authService.Logout();
-            RefreshAccountList();
         }
 
         private async void DeleteAccount_Click(object sender, RoutedEventArgs e)
