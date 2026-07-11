@@ -122,16 +122,22 @@ namespace SeewoAutoLogin
             RefreshAccountList();
         }
 
-        private void DeleteAccount_Click(object sender, RoutedEventArgs e)
+        private async void DeleteAccount_Click(object sender, RoutedEventArgs e)
         {
             var btn = sender as FrameworkElement;
             var account = btn?.Tag as SeewoAccount;
             if (account == null) return;
 
-            var result = MessageBox.Show(
-                $"确定删除账号「{account.DisplayName ?? account.Username}」吗？",
-                "删除账号", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result != MessageBoxResult.Yes) return;
+            var dialog = new iNKORE.UI.WPF.Modern.Controls.ContentDialog
+            {
+                Title = "删除账号",
+                Content = $"确定删除账号「{account.DisplayName ?? account.Username}」吗？",
+                PrimaryButtonText = "删除",
+                SecondaryButtonText = "取消",
+                Owner = Window.GetWindow(this)
+            };
+            var result = await dialog.ShowAsync();
+            if (result != iNKORE.UI.WPF.Modern.Controls.ContentDialogResult.Primary) return;
 
             _plugin.RemoveAccount(account.Id);
             RefreshAccountList();
