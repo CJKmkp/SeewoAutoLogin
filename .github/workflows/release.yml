@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+    - name: Checkout plugin
+      uses: actions/checkout@v6.0.2
+      with:
+        path: SeewoAutoLogin
+
+    - name: Checkout SDK
+      uses: actions/checkout@v6.0.2
+      with:
+        repository: InkCanvasForClass/community
+        path: community
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5.2.0
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: Copy SDK DLLs
+      shell: pwsh
+      run: |
+        $framework = "net6.0-windows10.0.19041.0"
+        $sdkSrc = "community/InkCanvas.PluginSdk/bin/Release/$framework/InkCanvas.PluginSdk.dll"
+        if (Test-Path $sdkSrc) {
+          Copy-Item $sdkSrc "SeewoAutoLogin/lib/" -Force
+        }
+
+    - name: Restore
+      run: dotnet restore SeewoAutoLogin/SeewoAutoLogin.csproj
+
+    - name: Build
+      run: dotnet build SeewoAutoLogin/SeewoAutoLogin.csproj --configuration Release --no-restore
+
+    - name: Package .icpx
+      id: package
+      shell: pwsh
+      run: |
+        $outputDir = "SeewoAutoLogin/bin/Release/net6.0-windows10.0.19041.0"
+        $manifest = Get-Content "$outputDir/manifest.json" | ConvertFrom-Json
+        $pluginId = $manifest.Id
+
+        $tempDir = Join-Path $env:TEMP "icpx_$pluginId"
+        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+        New-Item -ItemType Directory -Path $tempDir | Out-Null
+
+        foreach ($f in @("manifest.json", $manifest.EntranceAssembly, "$($manifest.EntranceAssembly -replace '\.dll$','.deps.json')")) {
+          $src = Join-Path $outputDir $f
+          if (Test-Path $src) { Copy-Item $src $tempDir }
+        }
+
+        $outDir = "SeewoAutoLogin/packages"
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $zipPath = "$outDir/$pluginId.zip"
+        $icpxPath = "$outDir/$pluginId.icpx"
+        Compress-Archive -Path "$tempDir/*" -DestinationPath $zipPath -Force
+        if (Test-Path $icpxPath) { Remove-Item $icpxPath }
+        Move-Item $zipPath $icpxPath -Force
+
+        $hash = (Get-FileHash $icpxPath -Algorithm SHA256).Hash.ToLower()
+        echo "icpx_path=$icpxPath" >> $env:GITHUB_OUTPUT
+        echo "plugin_id=$pluginId" >> $env:GITHUB_OUTPUT
+        echo "sha256=$hash" >> $env:GITHUB_OUTPUT
+        echo "version=$($manifest.Version)" >> $env:GITHUB_OUTPUT
+
+    - name: Get tag
+      id: tag
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: ${{ steps.tag.outputs.tag }}
+        body: |
+          ## ${{ steps.package.outputs.plugin_id }} v${{ steps.package.outputs.version }}
+
+          希沃白板自动登录插件 - ICC-CE 插件市场
+
+          ### 安装方法
+          1. 下载下方的 `.icpx` 文件
+          2. 将其放入 ICC-CE 的 `PluginPackages/` 目录
+          3. 重启 ICC-CE 即可自动安装
+
+          ### 校验信息
+          ```
+          SHA256: ${{ steps.package.outputs.sha256 }}
+          ```
+        files: ${{ steps.package.outputs.icpx_path }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
