@@ -195,10 +195,11 @@ namespace SeewoAutoLogin
                         return;
                     }
 
-                    // 设置 token cookie
-                    resp.Headers.Add("Set-Cookie", $"pt_token={loginResult.Token}; Path=/");
+                    // 设置 token cookie（多种方式确保客户端能读取）
+                    resp.Headers.Set("Set-Cookie", $"pt_token={loginResult.Token}; Path=/; SameSite=Lax");
+                    resp.Headers.Set("X-Auth-Token", loginResult.Token);
 
-                    await WriteJson(resp, new { message = "success", statusCode = "200" });
+                    await WriteJson(resp, new { message = "success", statusCode = "200", data = new { pt_token = loginResult.Token } });
 
                     // 更新账号信息
                     account.UserInfo = loginResult.UserInfo;

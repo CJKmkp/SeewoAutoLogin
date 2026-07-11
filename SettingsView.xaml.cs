@@ -16,9 +16,7 @@ namespace SeewoAutoLogin
             _authService = authService;
             _plugin = plugin;
 
-            AutoLoginCheckBox.IsChecked = plugin.Config.AutoLogin;
             RefreshAccountList();
-            UpdateActiveAccountHint();
         }
 
         #region 账号列表
@@ -90,21 +88,6 @@ namespace SeewoAutoLogin
             }
         }
 
-        private void UpdateActiveAccountHint()
-        {
-            var active = _plugin.ActiveAccount;
-            if (active != null)
-            {
-                ActiveAccountHint.Text = $"当前账号：{active.DisplayName ?? active.Username}";
-                UpdateUserInfo(active.UserInfo);
-            }
-            else
-            {
-                ActiveAccountHint.Text = "未选择账号";
-                UserInfoCard.Visibility = Visibility.Collapsed;
-            }
-        }
-
         private void UpdateUserInfo(SeewoUserInfo info)
         {
             if (info == null)
@@ -123,12 +106,6 @@ namespace SeewoAutoLogin
 
         #region 事件处理
 
-        private void AutoLogin_Changed(object sender, RoutedEventArgs e)
-        {
-            _plugin.Config.AutoLogin = AutoLoginCheckBox.IsChecked == true;
-            _plugin.SaveConfig();
-        }
-
         private void AccountListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // 点击账号列表项不做任何操作
@@ -143,7 +120,6 @@ namespace SeewoAutoLogin
             _plugin.SetActiveAccount(account.Id);
             _authService.Logout();
             RefreshAccountList();
-            UpdateActiveAccountHint();
         }
 
         private void DeleteAccount_Click(object sender, RoutedEventArgs e)
@@ -159,7 +135,6 @@ namespace SeewoAutoLogin
 
             _plugin.RemoveAccount(account.Id);
             RefreshAccountList();
-            UpdateActiveAccountHint();
         }
 
         private void AddAccount_Click(object sender, RoutedEventArgs e)
@@ -209,7 +184,6 @@ namespace SeewoAutoLogin
                 _plugin.AddAccount(account);
                 LoginPanel.Visibility = Visibility.Collapsed;
                 RefreshAccountList();
-                UpdateActiveAccountHint();
             }
             else
             {

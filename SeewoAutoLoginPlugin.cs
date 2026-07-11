@@ -4,7 +4,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace SeewoAutoLogin
 {
@@ -43,39 +42,6 @@ namespace SeewoAutoLogin
             catch (Exception ex)
             {
                 LogError($"SSO 网关启动失败: {ex.Message}");
-            }
-
-            if (Config.AutoLogin && ActiveAccount != null
-                && !string.IsNullOrEmpty(ActiveAccount.Username)
-                && !string.IsNullOrEmpty(ActiveAccount.Password))
-            {
-                Log($"正在自动登录：{ActiveAccount.DisplayName ?? ActiveAccount.Username}");
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await Task.Delay(3000);
-                        var result = await _authService.LoginAsync(ActiveAccount.Username, ActiveAccount.Password);
-                        if (result.Success)
-                        {
-                            ActiveAccount.UserInfo = result.UserInfo;
-                            SaveConfig();
-                            Log($"自动登录成功：{result.UserInfo?.NickName}");
-                        }
-                        else
-                        {
-                            LogError($"自动登录失败：{result.ErrorMessage}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        LogError($"自动登录异常：{ex.Message}");
-                    }
-                });
-            }
-            else
-            {
-                Log("自动登录未启用或未配置账号");
             }
         }
 

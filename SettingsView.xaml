@@ -7,18 +7,6 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <ikw:SimpleStackPanel Spacing="12" Margin="16">
 
-            <!-- 自动登录开关 -->
-            <Border CornerRadius="8" Padding="16"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <StackPanel>
-                    <CheckBox x:Name="AutoLoginCheckBox" Content="启动时自动登录当前账号"
-                        Checked="AutoLogin_Changed" Unchecked="AutoLogin_Changed"/>
-                    <TextBlock x:Name="ActiveAccountHint" FontSize="11" Margin="24,4,0,0"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                </StackPanel>
-            </Border>
-
             <!-- 账号列表 -->
             <Border CornerRadius="8" Padding="16"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
