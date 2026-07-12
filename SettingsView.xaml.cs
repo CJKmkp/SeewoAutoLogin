@@ -163,11 +163,9 @@ namespace SeewoAutoLogin
             AccountListBox.Items.Clear();
             foreach (var account in _plugin.Config.Accounts)
             {
-                var item = new ListBoxItem
+                var item = new iNKORE.UI.WPF.Modern.Controls.ListViewItem
                 {
                     Tag = account,
-                    Padding = new Thickness(10),
-                    Margin = new Thickness(0),
                     HorizontalContentAlignment = HorizontalAlignment.Stretch
                 };
 
