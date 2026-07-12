@@ -10,6 +10,10 @@ namespace SeewoAutoLogin
         public List<SeewoAccount> Accounts { get; set; } = new List<SeewoAccount>();
         public string ActiveAccountId { get; set; } = "";
         public bool AutoLogin { get; set; }
+        public bool UseAppPassword { get; set; }
+        public bool UsePluginPassword { get; set; }
+        public string PluginPasswordHash { get; set; } = "";
+        public string PluginPasswordSalt { get; set; } = "";
     }
 
     /// <summary>

@@ -4,83 +4,124 @@
     xmlns:ui="http://schemas.inkore.net/lib/ui/wpf/modern"
     xmlns:ikw="http://schemas.inkore.net/lib/ui/wpf">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <ikw:SimpleStackPanel Spacing="12" Margin="16">
+    <Grid>
+        <!-- 主内容 -->
+        <ScrollViewer x:Name="MainContent" VerticalScrollBarVisibility="Auto">
+            <ikw:SimpleStackPanel Spacing="12" Margin="16">
 
-            <!-- 账号列表 -->
-            <Border CornerRadius="8" Padding="16"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <!-- 密码保护设置 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock Text="安全设置" FontSize="14" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="UsePluginPasswordCheckBox" Content="使用密码保护插件设置"
+                            Checked="PasswordSetting_Changed" Unchecked="PasswordSetting_Changed"/>
+                        <StackPanel x:Name="PluginPasswordPanel" Visibility="Collapsed">
+                            <StackPanel Orientation="Horizontal">
+                                <PasswordBox x:Name="NewPasswordBox" Password="" Padding="8,6" Width="200"
+                                    VerticalAlignment="Center"/>
+                                <Button x:Name="SetPasswordBtn" Content="设置密码" Click="SetPassword_Click"
+                                    Padding="10,6" Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock x:Name="PasswordStatus" FontSize="11" Margin="0,4,0,0"
+                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
+                <!-- 账号列表 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <Grid>
+                                <TextBlock Text="账号列表" FontSize="14" FontWeight="SemiBold"
+                                    VerticalAlignment="Center"/>
+                                <Button Content="+ 添加账号" Click="AddAccount_Click" Padding="10,4"
+                                    HorizontalAlignment="Right"/>
+                            </Grid>
+                        </StackPanel>
+                        <ListBox x:Name="AccountListBox" SelectionChanged="AccountListBox_SelectionChanged"
+                            HorizontalContentAlignment="Stretch" MaxHeight="300"/>
+                    </DockPanel>
+                </Border>
+
+                <!-- 登录区域 -->
+                <Border x:Name="LoginPanel" CornerRadius="8" Padding="16" Visibility="Collapsed"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="10">
+                        <TextBlock x:Name="LoginPanelTitle" Text="添加账号" FontSize="14" FontWeight="SemiBold"/>
+                        <StackPanel>
+                            <TextBlock Text="显示名称" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DisplayNameBox" Padding="8,6"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="手机号 / 用户名" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <TextBox x:Name="UsernameBox" Padding="8,6"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="密码" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <PasswordBox x:Name="PasswordBox" Padding="8,6"/>
+                        </StackPanel>
+                        <TextBlock x:Name="LoginStatus" FontSize="12"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="LoginButton" Content="登录并保存" Click="LoginButton_Click"
+                                Padding="14,6" Margin="0,0,8,0"/>
+                            <Button Content="取消" Click="CancelLogin_Click" Padding="14,6"/>
+                        </StackPanel>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
+                <!-- 当前用户信息 -->
+                <Border x:Name="UserInfoCard" CornerRadius="8" Padding="16" Visibility="Collapsed"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock Text="当前用户信息" FontSize="14" FontWeight="SemiBold"/>
                         <Grid>
-                            <TextBlock Text="账号列表" FontSize="14" FontWeight="SemiBold"
-                                VerticalAlignment="Center"/>
-                            <Button Content="+ 添加账号" Click="AddAccount_Click" Padding="10,4"
-                                HorizontalAlignment="Right"/>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="昵称" Opacity="0.6" Margin="0,0,16,4"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="InfoNickName" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="姓名" Opacity="0.6" Margin="0,0,16,4"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="InfoRealName" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="学校" Opacity="0.6" Margin="0,0,16,4"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="InfoUnitName" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="学科" Opacity="0.6" Margin="0,0,16,4"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="InfoSubjectName" Margin="0,0,0,4"/>
                         </Grid>
-                    </StackPanel>
+                    </ikw:SimpleStackPanel>
+                </Border>
 
-                    <!-- 账号列表 -->
-                    <ListBox x:Name="AccountListBox" SelectionChanged="AccountListBox_SelectionChanged"
-                        HorizontalContentAlignment="Stretch" MaxHeight="300"/>
-                </DockPanel>
-            </Border>
+            </ikw:SimpleStackPanel>
+        </ScrollViewer>
 
-            <!-- 登录区域 -->
-            <Border x:Name="LoginPanel" CornerRadius="8" Padding="16" Visibility="Collapsed"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <ikw:SimpleStackPanel Spacing="10">
-                    <TextBlock x:Name="LoginPanelTitle" Text="添加账号" FontSize="14" FontWeight="SemiBold"/>
-                    <StackPanel>
-                        <TextBlock Text="显示名称" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                        <TextBox x:Name="DisplayNameBox" Padding="8,6"/>
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Text="手机号 / 用户名" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                        <TextBox x:Name="UsernameBox" Padding="8,6"/>
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Text="密码" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                        <PasswordBox x:Name="PasswordBox" Padding="8,6"/>
-                    </StackPanel>
-                    <TextBlock x:Name="LoginStatus" FontSize="12"
-                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="LoginButton" Content="登录并保存" Click="LoginButton_Click"
-                            Padding="14,6" Margin="0,0,8,0"/>
-                        <Button Content="取消" Click="CancelLogin_Click" Padding="14,6"/>
-                    </StackPanel>
-                </ikw:SimpleStackPanel>
-            </Border>
-
-            <!-- 当前用户信息 -->
-            <Border x:Name="UserInfoCard" CornerRadius="8" Padding="16" Visibility="Collapsed"
-                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <ikw:SimpleStackPanel Spacing="8">
-                    <TextBlock Text="当前用户信息" FontSize="14" FontWeight="SemiBold"/>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/>
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="昵称" Opacity="0.6" Margin="0,0,16,4"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="InfoNickName" Margin="0,0,0,4"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="姓名" Opacity="0.6" Margin="0,0,16,4"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="InfoRealName" Margin="0,0,0,4"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="学校" Opacity="0.6" Margin="0,0,16,4"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="InfoUnitName" Margin="0,0,0,4"/>
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="学科" Opacity="0.6" Margin="0,0,16,4"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="InfoSubjectName" Margin="0,0,0,4"/>
-                    </Grid>
-                </ikw:SimpleStackPanel>
-            </Border>
-
-        </ikw:SimpleStackPanel>
-    </ScrollViewer>
+        <!-- 密码验证遮罩 -->
+        <Border x:Name="LockOverlay" Visibility="Collapsed"
+            Background="{DynamicResource ApplicationBackgroundBrush}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="300">
+                <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Lock}" FontSize="48"
+                    HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.6"/>
+                <TextBlock Text="需要验证身份" FontSize="18" FontWeight="SemiBold"
+                    HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock x:Name="LockHint" FontSize="13"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                <PasswordBox x:Name="UnlockPasswordBox" Padding="8,6" Margin="0,0,0,8"/>
+                <Button x:Name="UnlockButton" Content="解锁" Click="Unlock_Click"
+                    Padding="16,8" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="UnlockStatus" FontSize="12" Foreground="Red"
+                    HorizontalAlignment="Center" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
 </UserControl>

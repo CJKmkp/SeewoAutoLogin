@@ -1,4 +1,8 @@
+using Ink_Canvas.Plugins;
+using System;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,6 +13,7 @@ namespace SeewoAutoLogin
     {
         private readonly SeewoAuthService _authService;
         private readonly SeewoAutoLoginPlugin _plugin;
+        private bool _isUnlocked;
 
         public SettingsView(SeewoAuthService authService, SeewoAutoLoginPlugin plugin)
         {
@@ -16,8 +21,109 @@ namespace SeewoAutoLogin
             _authService = authService;
             _plugin = plugin;
 
-            RefreshAccountList();
+            LoadPasswordSettings();
+            CheckPasswordGate();
         }
+
+        #region 密码门控
+
+        private void LoadPasswordSettings()
+        {
+            UsePluginPasswordCheckBox.IsChecked = _plugin.Config.UsePluginPassword;
+            PluginPasswordPanel.Visibility = _plugin.Config.UsePluginPassword ? Visibility.Visible : Visibility.Collapsed;
+            PasswordStatus.Text = string.IsNullOrEmpty(_plugin.Config.PluginPasswordHash) ? "未设置密码" : "已设置密码";
+        }
+
+        private void CheckPasswordGate()
+        {
+            var needsPassword = false;
+            var hint = "";
+
+            if (_plugin.Config.UsePluginPassword && !string.IsNullOrEmpty(_plugin.Config.PluginPasswordHash))
+            {
+                needsPassword = true;
+                hint = "请输入本插件的独立密码";
+            }
+
+            if (needsPassword && !_isUnlocked)
+            {
+                LockOverlay.Visibility = Visibility.Visible;
+                LockHint.Text = hint;
+                UnlockPasswordBox.Focus();
+            }
+            else
+            {
+                LockOverlay.Visibility = Visibility.Collapsed;
+                _isUnlocked = true;
+                RefreshAccountList();
+            }
+        }
+
+        private void Unlock_Click(object sender, RoutedEventArgs e)
+        {
+            var password = UnlockPasswordBox.Password;
+            if (string.IsNullOrEmpty(password))
+            {
+                UnlockStatus.Text = "请输入密码";
+                return;
+            }
+
+            bool verified = false;
+
+            if (_plugin.Config.UsePluginPassword && !string.IsNullOrEmpty(_plugin.Config.PluginPasswordHash))
+            {
+                verified = VerifyPassword(password, _plugin.Config.PluginPasswordHash, _plugin.Config.PluginPasswordSalt);
+            }
+
+            if (verified)
+            {
+                _isUnlocked = true;
+                LockOverlay.Visibility = Visibility.Collapsed;
+                UnlockPasswordBox.Password = "";
+                UnlockStatus.Text = "";
+                RefreshAccountList();
+            }
+            else
+            {
+                UnlockStatus.Text = "密码错误";
+                UnlockPasswordBox.Password = "";
+                UnlockPasswordBox.Focus();
+            }
+        }
+
+        #endregion
+
+        #region 密码设置
+
+        private void PasswordSetting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isUnlocked) return;
+
+            _plugin.Config.UsePluginPassword = UsePluginPasswordCheckBox.IsChecked == true;
+            PluginPasswordPanel.Visibility = _plugin.Config.UsePluginPassword ? Visibility.Visible : Visibility.Collapsed;
+            _plugin.SaveConfig();
+        }
+
+        private void SetPassword_Click(object sender, RoutedEventArgs e)
+        {
+            var password = NewPasswordBox.Password;
+            if (string.IsNullOrEmpty(password))
+            {
+                PasswordStatus.Text = "请输入密码";
+                return;
+            }
+
+            var salt = GenerateSalt();
+            var hash = ComputeHash(password, salt);
+            _plugin.Config.PluginPasswordHash = hash;
+            _plugin.Config.PluginPasswordSalt = salt;
+            _plugin.SaveConfig();
+
+            NewPasswordBox.Password = "";
+            PasswordStatus.Text = "密码已设置";
+        }
+
+        #endregion
 
         #region 账号列表
 
@@ -38,7 +144,6 @@ namespace SeewoAutoLogin
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                // 左侧：名称 + 用户名
                 var infoPanel = new StackPanel();
                 var nameText = new TextBlock
                 {
@@ -56,7 +161,6 @@ namespace SeewoAutoLogin
                 Grid.SetColumn(infoPanel, 0);
                 grid.Children.Add(infoPanel);
 
-                // 右侧：删除按钮
                 var deleteBtn = new Button
                 {
                     Padding = new Thickness(6, 4, 6, 4), Tag = account, ToolTip = "删除"
@@ -92,9 +196,7 @@ namespace SeewoAutoLogin
 
         #region 事件处理
 
-        private void AccountListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-        }
+        private void AccountListBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
         private async void DeleteAccount_Click(object sender, RoutedEventArgs e)
         {
@@ -172,6 +274,36 @@ namespace SeewoAutoLogin
 
             LoginButton.IsEnabled = true;
             LoginButton.Content = "登录并保存";
+        }
+
+        #endregion
+
+        #region 密码工具
+
+        private static string GenerateSalt()
+        {
+            var bytes = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(bytes);
+            }
+            return Convert.ToBase64String(bytes);
+        }
+
+        private static string ComputeHash(string password, string salt)
+        {
+            using (var sha = SHA256.Create())
+            {
+                var combined = Encoding.UTF8.GetBytes(password + salt);
+                var hash = sha.ComputeHash(combined);
+                return Convert.ToBase64String(hash);
+            }
+        }
+
+        private static bool VerifyPassword(string password, string expectedHash, string salt)
+        {
+            var hash = ComputeHash(password, salt);
+            return hash == expectedHash;
         }
 
         #endregion
