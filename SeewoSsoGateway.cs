@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -39,54 +41,117 @@ namespace SeewoAutoLogin
         }
 
         private const string SeeSoLocalHost = "local.id.seewo.com";
+        private const string TrustedEasiAgentSuffix = @"\Seewo\EasiAgent\EasiAgent.exe";
 
         public void Start()
         {
             if (IsRunning) return;
 
-            // 自动添加 hosts 映射
             EnsureHostsMapping();
+            ResetListener();
 
+            try
+            {
+                _listener.Start();
+            }
+            catch (HttpListenerException) when (IsPortListening(Port))
+            {
+                Log($"SSO 网关端口 {Port} 已被占用，正在检查希沃 EasiAgent");
+                if (!TryStopTrustedEasiAgent())
+                    throw;
+
+                if (!WaitForPortRelease(TimeSpan.FromSeconds(5)))
+                    throw new InvalidOperationException($"结束希沃 EasiAgent 后端口 {Port} 未及时释放。");
+
+                ResetListener();
+                _listener.Start();
+                Log("已结束占用端口的希沃 EasiAgent，并重新加载 SSO 网关");
+            }
+
+            _ = Task.Run(() => ListenLoop(_cts.Token));
+            Log($"SSO 网关已启动: http://localhost:{Port}");
+        }
+
+        private void ResetListener()
+        {
+            try { _listener?.Close(); } catch { }
+            _cts?.Dispose();
             _cts = new CancellationTokenSource();
             _listener = new HttpListener();
             _listener.Prefixes.Add($"http://localhost:{Port}/");
             _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
             try { _listener.Prefixes.Add($"http://{SeeSoLocalHost}:{Port}/"); }
             catch { }
+        }
 
-            try
-            {
-                _listener.Start();
-            }
-            catch (HttpListenerException ex) when (ex.ErrorCode == 5)
+        private bool TryStopTrustedEasiAgent()
+        {
+            foreach (var process in Process.GetProcessesByName("EasiAgent"))
             {
                 try
                 {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    var path = process.MainModule?.FileName;
+                    if (!IsTrustedEasiAgentPath(path))
                     {
-                        FileName = "netsh",
-                        Arguments = $"http add urlacl url=http://+:{Port}/ user=Everyone",
-                        Verb = "runas",
-                        UseShellExecute = true,
-                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
-                    })?.WaitForExit(5000);
+                        Log($"拒绝结束非受信任路径的 EasiAgent; pid={process.Id}");
+                        continue;
+                    }
 
-                    _listener = new HttpListener();
-                    _listener.Prefixes.Add($"http://localhost:{Port}/");
-                    _listener.Prefixes.Add($"http://127.0.0.1:{Port}/");
-                    try { _listener.Prefixes.Add($"http://{SeeSoLocalHost}:{Port}/"); }
-                    catch { }
-                    _listener.Start();
+                    Log($"正在结束希沃 EasiAgent; pid={process.Id}");
+                    process.Kill();
+                    process.WaitForExit(5000);
+                    return process.HasExited;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    Log("SSO 网关启动失败：需要管理员权限");
-                    return;
+                    Log($"结束希沃 EasiAgent 失败; pid={process.Id}; error={ex.GetType().Name}");
+                }
+                finally
+                {
+                    process.Dispose();
                 }
             }
+            return false;
+        }
 
-            _ = Task.Run(() => ListenLoop(_cts.Token));
-            Log($"SSO 网关已启动: http://localhost:{Port}");
+        private static bool IsTrustedEasiAgentPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            try
+            {
+                var fullPath = Path.GetFullPath(path);
+                return fullPath.EndsWith(TrustedEasiAgentSuffix, StringComparison.OrdinalIgnoreCase) &&
+                       string.Equals(Path.GetFileName(fullPath), "EasiAgent.exe", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool WaitForPortRelease(TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                if (!IsPortListening(Port)) return true;
+                Thread.Sleep(100);
+            }
+            return !IsPortListening(Port);
+        }
+
+        private static bool IsPortListening(int port)
+        {
+            try
+            {
+                return IPGlobalProperties.GetIPGlobalProperties()
+                    .GetActiveTcpListeners()
+                    .Any(endpoint => endpoint.Port == port);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
