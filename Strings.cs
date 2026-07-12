@@ -31,5 +31,10 @@ namespace SeewoAutoLogin
         public static string Saved => IsEnglish ? "The account was added." : "账号已添加。";
         public static string AccountFallback => IsEnglish ? "Seewo account" : "希沃账号";
         public static string SecondsRemaining(int seconds) => IsEnglish ? $"{seconds}s remaining" : $"剩余 {seconds} 秒";
+        public static string RotationTitle => IsEnglish ? "User list rotation" : "用户列表轮换";
+        public static string RotationEnabled => IsEnglish ? "Rotate quick-login users when the Seewo login window reopens" : "希沃快捷登录窗口重开时轮换用户列表";
+        public static string RotationGroupSize => IsEnglish ? "Users per group" : "每组用户数";
+        public static string RotationStatus(int group) => IsEnglish ? $"Current group: {group}" : $"当前列表：第 {group} 组";
+        public static string RotationHint => IsEnglish ? "Disabled by default. Reopening within 10 seconds switches to the next group." : "默认关闭。窗口关闭后 10 秒内重新打开会切换到下一组。";
     }
 }

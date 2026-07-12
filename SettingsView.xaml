@@ -50,6 +50,25 @@
                     </DockPanel>
                 </Border>
 
+                <!-- 用户列表轮换 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock x:Name="RotationTitleText" FontSize="14" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="RotationEnabledCheckBox" Checked="RotationSetting_Changed" Unchecked="RotationSetting_Changed"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="RotationGroupSizeLabel" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ComboBox x:Name="RotationGroupSizeComboBox" Width="100" SelectionChanged="RotationGroupSize_Changed">
+                                <ComboBoxItem Content="4" Tag="4"/>
+                                <ComboBoxItem Content="6" Tag="6"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <TextBlock x:Name="RotationStatusText" FontSize="11"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 希沃官方扫码登录 -->
                 <Border CornerRadius="8" Padding="16"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

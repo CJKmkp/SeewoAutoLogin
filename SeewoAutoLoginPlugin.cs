@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace SeewoAutoLogin
@@ -14,6 +15,7 @@ namespace SeewoAutoLogin
         private SeewoQrLoginClient _qrLoginClient;
         private QrLoginCoordinator _qrLoginCoordinator;
         private QrSessionStore _qrSessionStore;
+        private SeewoUserListRotationService _userListRotation;
         private SeewoSsoGateway _gateway;
         private SettingsView _settingsView;
         private readonly object _diagnosticLogLock = new object();
@@ -32,17 +34,20 @@ namespace SeewoAutoLogin
             _qrLoginClient = new SeewoQrLoginClient();
             _qrLoginCoordinator = new QrLoginCoordinator(_qrLoginClient);
             _qrSessionStore = new QrSessionStore();
+            var windowOverview = host.GetService<IWindowOverviewService>();
+            _userListRotation = new SeewoUserListRotationService(windowOverview, () => Config);
             _qrLoginClient.LogMessage += WriteDiagnosticLog;
             _qrLoginCoordinator.LogMessage += WriteDiagnosticLog;
             services.AddSingleton(_authService);
             services.AddSingleton(_qrLoginClient);
             services.AddSingleton(_qrLoginCoordinator);
             services.AddSingleton(_qrSessionStore);
+            services.AddSingleton(_userListRotation);
 
             LoadConfig();
 
             // 启动本地 SSO 网关（希沃白板连接此服务获取账号列表和 token）
-            _gateway = new SeewoSsoGateway(_authService, () => Config, TryRestoreQrSession, account =>
+            _gateway = new SeewoSsoGateway(_authService, () => Config, TryRestoreQrSession, GetVisibleAccounts, account =>
             {
                 account.UserInfo = _authService.UserInfo;
                 SaveConfig();
@@ -61,6 +66,7 @@ namespace SeewoAutoLogin
         public override void Shutdown()
         {
             _qrLoginCoordinator?.Dispose();
+            _userListRotation?.Dispose();
             _qrLoginClient?.Dispose();
             _gateway?.Dispose();
             _authService?.Dispose();
@@ -73,6 +79,15 @@ namespace SeewoAutoLogin
                 _settingsView = new SettingsView(_authService, _qrLoginCoordinator, this);
             return _settingsView;
         }
+
+        public IReadOnlyList<SeewoAccount> GetVisibleAccounts()
+        {
+            return _userListRotation?.SelectAccounts(Config.Accounts) ?? Config.Accounts;
+        }
+
+        public string UserListRotationStatus => _userListRotation == null || !_userListRotation.IsLoginWindowOpen
+            ? ""
+            : $"第 {_userListRotation.CurrentGroupIndex + 1} 组";
 
         #region 账号管理
 

@@ -37,6 +37,7 @@ namespace SeewoAutoLogin
             _qrCountdownTimer.Tick += QrCountdownTimer_Tick;
             Unloaded += SettingsView_Unloaded;
             ApplyLocalizedQrText();
+            ApplyRotationSettings();
 
             LoadPasswordSettings();
             CheckPasswordGate();
@@ -478,6 +479,37 @@ namespace SeewoAutoLogin
             _qrLoginCancellation?.Cancel();
             _qrLoginCoordinator.Cancel();
             _qrCountdownTimer.Stop();
+        }
+
+        #endregion
+
+        #region 用户列表轮换
+
+        private void ApplyRotationSettings()
+        {
+            RotationTitleText.Text = Strings.RotationTitle;
+            RotationEnabledCheckBox.Content = Strings.RotationEnabled;
+            RotationGroupSizeLabel.Text = Strings.RotationGroupSize;
+            RotationEnabledCheckBox.IsChecked = _plugin.Config.UserListRotationEnabled;
+            var size = SeewoUserListRotationService.NormalizeGroupSize(_plugin.Config.UserListRotationGroupSize);
+            RotationGroupSizeComboBox.SelectedIndex = size == 4 ? 0 : 1;
+            RotationStatusText.Text = Strings.RotationHint;
+        }
+
+        private void RotationSetting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isUnlocked || RotationEnabledCheckBox == null) return;
+            _plugin.Config.UserListRotationEnabled = RotationEnabledCheckBox.IsChecked == true;
+            _plugin.SaveConfig();
+            RotationStatusText.Text = Strings.RotationHint;
+        }
+
+        private void RotationGroupSize_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isUnlocked || RotationGroupSizeComboBox?.SelectedItem is not ComboBoxItem item) return;
+            if (!int.TryParse(item.Tag?.ToString(), out var size)) return;
+            _plugin.Config.UserListRotationGroupSize = SeewoUserListRotationService.NormalizeGroupSize(size);
+            _plugin.SaveConfig();
         }
 
         #endregion

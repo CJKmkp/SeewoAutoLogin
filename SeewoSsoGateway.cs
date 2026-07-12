@@ -23,6 +23,7 @@ namespace SeewoAutoLogin
         private readonly SeewoAuthService _authService;
         private readonly Func<PluginConfig> _getConfig;
         private readonly Func<SeewoAccount, bool> _tryRestoreQrSession;
+        private readonly Func<IReadOnlyList<SeewoAccount>> _getVisibleAccounts;
         private readonly Action<SeewoAccount> _onLoginSuccess;
 
         public int Port { get; set; } = 24300;
@@ -32,11 +33,13 @@ namespace SeewoAutoLogin
             SeewoAuthService authService,
             Func<PluginConfig> getConfig,
             Func<SeewoAccount, bool> tryRestoreQrSession,
+            Func<IReadOnlyList<SeewoAccount>> getVisibleAccounts,
             Action<SeewoAccount> onLoginSuccess)
         {
             _authService = authService;
             _getConfig = getConfig;
             _tryRestoreQrSession = tryRestoreQrSession;
+            _getVisibleAccounts = getVisibleAccounts;
             _onLoginSuccess = onLoginSuccess;
         }
 
@@ -223,7 +226,7 @@ namespace SeewoAutoLogin
                 if (req.HttpMethod == "GET" && path.Equals("/getData/SSOLOGIN", StringComparison.OrdinalIgnoreCase))
                 {
                     var config = _getConfig();
-                    var accounts = config.Accounts
+                    var accounts = (_getVisibleAccounts?.Invoke() ?? config.Accounts)
                         .Where(a => !string.IsNullOrEmpty(a.Username))
                         .Select(a => new Dictionary<string, string>
                         {
