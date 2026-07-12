@@ -23,6 +23,8 @@
                                     VerticalAlignment="Center"/>
                                 <Button x:Name="SetPasswordBtn" Content="设置密码" Click="SetPassword_Click"
                                     Padding="10,6" Margin="8,0,0,0"/>
+                                <Button x:Name="ClearPasswordBtn" Content="清除密码" Click="ClearPassword_Click"
+                                    Padding="10,6" Margin="8,0,0,0"/>
                             </StackPanel>
                             <TextBlock x:Name="PasswordStatus" FontSize="11" Margin="0,4,0,0"
                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
@@ -106,8 +108,10 @@
         </ScrollViewer>
 
         <!-- 密码验证遮罩 -->
-        <Border x:Name="LockOverlay" Visibility="Collapsed"
-            Background="{DynamicResource ApplicationBackgroundBrush}">
+        <Border x:Name="LockOverlay" Visibility="Collapsed" Panel.ZIndex="100">
+            <Border.Background>
+                <SolidColorBrush Color="{DynamicResource SolidBackgroundFillColorBase}" Opacity="0.95"/>
+            </Border.Background>
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="300">
                 <ui:FontIcon Icon="{x:Static ui:SegoeFluentIcons.Lock}" FontSize="48"
                     HorizontalAlignment="Center" Margin="0,0,0,16" Opacity="0.6"/>

@@ -48,12 +48,14 @@ namespace SeewoAutoLogin
             if (needsPassword && !_isUnlocked)
             {
                 LockOverlay.Visibility = Visibility.Visible;
+                MainContent.IsEnabled = false;
                 LockHint.Text = hint;
                 UnlockPasswordBox.Focus();
             }
             else
             {
                 LockOverlay.Visibility = Visibility.Collapsed;
+                MainContent.IsEnabled = true;
                 _isUnlocked = true;
                 RefreshAccountList();
             }
@@ -79,6 +81,7 @@ namespace SeewoAutoLogin
             {
                 _isUnlocked = true;
                 LockOverlay.Visibility = Visibility.Collapsed;
+                MainContent.IsEnabled = true;
                 UnlockPasswordBox.Password = "";
                 UnlockStatus.Text = "";
                 RefreshAccountList();
@@ -121,6 +124,16 @@ namespace SeewoAutoLogin
 
             NewPasswordBox.Password = "";
             PasswordStatus.Text = "密码已设置";
+        }
+
+        private void ClearPassword_Click(object sender, RoutedEventArgs e)
+        {
+            _plugin.Config.PluginPasswordHash = "";
+            _plugin.Config.PluginPasswordSalt = "";
+            _plugin.SaveConfig();
+
+            NewPasswordBox.Password = "";
+            PasswordStatus.Text = "密码已清除";
         }
 
         #endregion
