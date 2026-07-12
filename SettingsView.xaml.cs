@@ -383,7 +383,7 @@ namespace SeewoAutoLogin
                     Password = "",
                     UserInfo = outcome.UserInfo
                 };
-                _plugin.AddAccount(account);
+                _plugin.AddQrAccount(account, outcome);
                 RefreshAccountList();
                 UpdateUserInfo(outcome.UserInfo);
                 QrStatusText.Text = Strings.Saved;

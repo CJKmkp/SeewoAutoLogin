@@ -20,15 +20,21 @@ namespace SeewoAutoLogin
         private CancellationTokenSource _cts;
         private readonly SeewoAuthService _authService;
         private readonly Func<PluginConfig> _getConfig;
+        private readonly Func<SeewoAccount, bool> _tryRestoreQrSession;
         private readonly Action<SeewoAccount> _onLoginSuccess;
 
         public int Port { get; set; } = 24300;
         public bool IsRunning => _listener?.IsListening == true;
 
-        public SeewoSsoGateway(SeewoAuthService authService, Func<PluginConfig> getConfig, Action<SeewoAccount> onLoginSuccess)
+        public SeewoSsoGateway(
+            SeewoAuthService authService,
+            Func<PluginConfig> getConfig,
+            Func<SeewoAccount, bool> tryRestoreQrSession,
+            Action<SeewoAccount> onLoginSuccess)
         {
             _authService = authService;
             _getConfig = getConfig;
+            _tryRestoreQrSession = tryRestoreQrSession;
             _onLoginSuccess = onLoginSuccess;
         }
 
@@ -185,25 +191,26 @@ namespace SeewoAutoLogin
                     }
 
                     SeewoLoginResult loginResult;
-                    if (string.IsNullOrEmpty(account.Password) && _authService.IsLoggedIn &&
-                        string.Equals(_authService.UserInfo?.AccountId, account.UserInfo?.AccountId, StringComparison.Ordinal))
+                    if (string.IsNullOrEmpty(account.Password))
                     {
-                        loginResult = new SeewoLoginResult
+                        if (!_authService.IsSessionFor(account))
+                            _tryRestoreQrSession?.Invoke(account);
+
+                        if (_authService.IsSessionFor(account))
                         {
-                            Success = true,
-                            Token = _authService.Token,
-                            UserInfo = _authService.UserInfo
-                        };
-                    }
-                    else if (!string.IsNullOrEmpty(account.Password))
-                    {
-                        loginResult = await _authService.LoginAsync(account.Username, account.Password);
+                            loginResult = _authService.GetCurrentLoginResult();
+                        }
+                        else
+                        {
+                            resp.StatusCode = 401;
+                            await WriteJson(resp, new { message = "qr_session_required", statusCode = "401" });
+                            Log($"SSOLOGIN/{userId}: 扫码会话不可用，需要重新扫码");
+                            return;
+                        }
                     }
                     else
                     {
-                        resp.StatusCode = 401;
-                        await WriteJson(resp, new { message = "qr_session_required", statusCode = "401" });
-                        return;
+                        loginResult = await _authService.LoginAsync(account.Username, account.Password);
                     }
 
                     if (!loginResult.Success)

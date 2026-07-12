@@ -173,6 +173,32 @@ namespace SeewoAutoLogin
             _tokenTime = DateTime.Now;
         }
 
+        public void RestoreQrSession(string token, SeewoUserInfo userInfo, DateTimeOffset acquiredAt)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                throw new ArgumentException("扫码会话令牌无效。", nameof(token));
+
+            _token = token;
+            _userInfo = userInfo;
+            _tokenTime = acquiredAt.LocalDateTime;
+        }
+
+        public bool IsSessionFor(SeewoAccount account)
+        {
+            if (account?.UserInfo == null || _userInfo == null || !IsLoggedIn) return false;
+            if (!string.IsNullOrWhiteSpace(account.UserInfo.AccountId) &&
+                string.Equals(_userInfo.AccountId, account.UserInfo.AccountId, StringComparison.Ordinal)) return true;
+            return !string.IsNullOrWhiteSpace(account.UserInfo.UserName) &&
+                   string.Equals(_userInfo.UserName, account.UserInfo.UserName, StringComparison.Ordinal);
+        }
+
+        public SeewoLoginResult GetCurrentLoginResult()
+        {
+            return IsLoggedIn
+                ? new SeewoLoginResult { Success = true, Token = _token, UserInfo = _userInfo }
+                : new SeewoLoginResult { Success = false, ErrorMessage = "登录信息已过期" };
+        }
+
         public void Logout()
         {
             _token = null;

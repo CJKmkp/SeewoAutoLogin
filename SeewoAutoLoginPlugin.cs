@@ -13,6 +13,7 @@ namespace SeewoAutoLogin
         private SeewoAuthService _authService;
         private SeewoQrLoginClient _qrLoginClient;
         private QrLoginCoordinator _qrLoginCoordinator;
+        private QrSessionStore _qrSessionStore;
         private SeewoSsoGateway _gateway;
         private SettingsView _settingsView;
         private readonly object _diagnosticLogLock = new object();
@@ -30,16 +31,18 @@ namespace SeewoAutoLogin
             _authService = new SeewoAuthService();
             _qrLoginClient = new SeewoQrLoginClient();
             _qrLoginCoordinator = new QrLoginCoordinator(_qrLoginClient);
+            _qrSessionStore = new QrSessionStore();
             _qrLoginClient.LogMessage += WriteDiagnosticLog;
             _qrLoginCoordinator.LogMessage += WriteDiagnosticLog;
             services.AddSingleton(_authService);
             services.AddSingleton(_qrLoginClient);
             services.AddSingleton(_qrLoginCoordinator);
+            services.AddSingleton(_qrSessionStore);
 
             LoadConfig();
 
             // 启动本地 SSO 网关（希沃白板连接此服务获取账号列表和 token）
-            _gateway = new SeewoSsoGateway(_authService, () => Config, account =>
+            _gateway = new SeewoSsoGateway(_authService, () => Config, TryRestoreQrSession, account =>
             {
                 account.UserInfo = _authService.UserInfo;
                 SaveConfig();
@@ -73,6 +76,36 @@ namespace SeewoAutoLogin
 
         #region 账号管理
 
+        public void AddQrAccount(SeewoAccount account, QrLoginOutcome outcome)
+        {
+            if (account == null) throw new ArgumentNullException(nameof(account));
+            if (outcome == null || string.IsNullOrWhiteSpace(outcome.Token))
+                throw new ArgumentException("扫码登录结果无效。", nameof(outcome));
+
+            var existing = FindMatchingAccount(account.UserInfo);
+            var credentialId = existing?.QrCredentialId;
+            if (string.IsNullOrWhiteSpace(credentialId))
+                credentialId = _qrSessionStore.CreateCredentialId();
+
+            _qrSessionStore.Save(credentialId, outcome.Token, DateTimeOffset.UtcNow);
+            account.QrCredentialId = credentialId;
+
+            if (existing != null)
+            {
+                existing.DisplayName = account.DisplayName;
+                existing.Username = account.Username;
+                existing.Password = "";
+                existing.UserInfo = account.UserInfo;
+                existing.QrCredentialId = credentialId;
+                if (Config.ActiveAccountId == "") Config.ActiveAccountId = existing.Id;
+                SaveConfig();
+                WriteDiagnosticLog($"[Account] 已更新扫码账号会话; account-id={existing.Id}; credential-present=True");
+                return;
+            }
+
+            AddAccount(account);
+        }
+
         public void AddAccount(SeewoAccount account)
         {
             Config.Accounts.Add(account);
@@ -84,10 +117,53 @@ namespace SeewoAutoLogin
 
         public void RemoveAccount(string accountId)
         {
+            var account = Config.Accounts.FirstOrDefault(a => a.Id == accountId);
+            if (!string.IsNullOrWhiteSpace(account?.QrCredentialId))
+            {
+                try
+                {
+                    _qrSessionStore.Delete(account.QrCredentialId);
+                    WriteDiagnosticLog($"[Account] 已删除扫码凭据; account-id={account.Id}");
+                }
+                catch (Exception ex)
+                {
+                    WriteDiagnosticLog($"[Account] 删除扫码凭据失败; account-id={account.Id}; error={ex.GetType().Name}");
+                }
+            }
             Config.Accounts.RemoveAll(a => a.Id == accountId);
             if (Config.ActiveAccountId == accountId)
                 Config.ActiveAccountId = Config.Accounts.FirstOrDefault()?.Id ?? "";
             SaveConfig();
+        }
+
+        public bool TryRestoreQrSession(SeewoAccount account)
+        {
+            if (account == null || string.IsNullOrWhiteSpace(account.QrCredentialId))
+            {
+                WriteDiagnosticLog($"[Session] 扫码账号没有可恢复的凭据; account-id={account?.Id ?? "<none>"}");
+                return false;
+            }
+
+            if (!_qrSessionStore.TryLoad(account.QrCredentialId, out var session))
+            {
+                WriteDiagnosticLog($"[Session] 扫码凭据读取失败; account-id={account.Id}");
+                return false;
+            }
+
+            _authService.RestoreQrSession(session.Token, account.UserInfo, session.AcquiredAtUtc);
+            var restored = _authService.IsSessionFor(account);
+            WriteDiagnosticLog($"[Session] 扫码会话恢复; account-id={account.Id}; restored={restored}");
+            return restored;
+        }
+
+        private SeewoAccount FindMatchingAccount(SeewoUserInfo userInfo)
+        {
+            if (userInfo == null) return null;
+            return Config.Accounts.FirstOrDefault(account =>
+                (!string.IsNullOrWhiteSpace(userInfo.AccountId) &&
+                 string.Equals(account.UserInfo?.AccountId, userInfo.AccountId, StringComparison.Ordinal)) ||
+                (!string.IsNullOrWhiteSpace(userInfo.UserName) &&
+                 string.Equals(account.UserInfo?.UserName, userInfo.UserName, StringComparison.Ordinal)));
         }
 
         public void SetActiveAccount(string accountId)
