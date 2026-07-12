@@ -177,15 +177,34 @@ namespace SeewoAutoLogin
                     var config = _getConfig();
                     var account = config.Accounts.FirstOrDefault(a => a.Id == userId || a.Username == userId);
 
-                    if (account == null || string.IsNullOrEmpty(account.Password))
+                    if (account == null)
                     {
                         resp.StatusCode = 404;
                         await WriteJson(resp, new { message = "user_not_found", statusCode = "404" });
                         return;
                     }
 
-                    // 登录获取 token
-                    var loginResult = await _authService.LoginAsync(account.Username, account.Password);
+                    SeewoLoginResult loginResult;
+                    if (string.IsNullOrEmpty(account.Password) && _authService.IsLoggedIn &&
+                        string.Equals(_authService.UserInfo?.AccountId, account.UserInfo?.AccountId, StringComparison.Ordinal))
+                    {
+                        loginResult = new SeewoLoginResult
+                        {
+                            Success = true,
+                            Token = _authService.Token,
+                            UserInfo = _authService.UserInfo
+                        };
+                    }
+                    else if (!string.IsNullOrEmpty(account.Password))
+                    {
+                        loginResult = await _authService.LoginAsync(account.Username, account.Password);
+                    }
+                    else
+                    {
+                        resp.StatusCode = 401;
+                        await WriteJson(resp, new { message = "qr_session_required", statusCode = "401" });
+                        return;
+                    }
 
                     if (!loginResult.Success)
                     {

@@ -1,12 +1,12 @@
 {
   "Id": "com.icc.seewo-autologin",
   "Name": "希沃自动登录",
-  "Version": "1.0.0",
-  "Description": "自动登录希沃教育平台 (edu.seewo.com)，支持开机自动认证",
-  "Author": "ICC-CE",
+  "Version": "1.0.2",
+  "Description": "支持希沃官方二维码登录、多账号管理和 SSO 快捷登录",
+  "Author": "CJKmkp",
   "EntranceAssembly": "SeewoAutoLogin.dll",
   "ApiVersion": "1.0.0",
-  "Icon": "icon.png",
-  "Url": "https://github.com/baiyao105/Fast-EasiLogin",
+  "Url": "https://github.com/CJKmkp/SeewoAutoLogin",
+  "Permissions": ["Network", "Settings"],
   "Dependencies": []
 }

@@ -11,8 +11,11 @@ namespace SeewoAutoLogin
     public class SeewoAutoLoginPlugin : PluginBase
     {
         private SeewoAuthService _authService;
+        private SeewoQrLoginClient _qrLoginClient;
+        private QrLoginCoordinator _qrLoginCoordinator;
         private SeewoSsoGateway _gateway;
         private SettingsView _settingsView;
+        private readonly object _diagnosticLogLock = new object();
 
         public PluginConfig Config { get; private set; } = new PluginConfig();
 
@@ -22,9 +25,16 @@ namespace SeewoAutoLogin
         {
             base.Initialize(host, services);
             Log($"{Name} v{Version} 正在初始化...");
+            WriteDiagnosticLog($"[Plugin] 初始化; version={Version}; process={Environment.ProcessId}");
 
             _authService = new SeewoAuthService();
+            _qrLoginClient = new SeewoQrLoginClient();
+            _qrLoginCoordinator = new QrLoginCoordinator(_qrLoginClient);
+            _qrLoginClient.LogMessage += WriteDiagnosticLog;
+            _qrLoginCoordinator.LogMessage += WriteDiagnosticLog;
             services.AddSingleton(_authService);
+            services.AddSingleton(_qrLoginClient);
+            services.AddSingleton(_qrLoginCoordinator);
 
             LoadConfig();
 
@@ -47,6 +57,8 @@ namespace SeewoAutoLogin
 
         public override void Shutdown()
         {
+            _qrLoginCoordinator?.Dispose();
+            _qrLoginClient?.Dispose();
             _gateway?.Dispose();
             _authService?.Dispose();
             Log($"{Name} 已关闭");
@@ -55,7 +67,7 @@ namespace SeewoAutoLogin
         public override object GetSettingsView()
         {
             if (_settingsView == null)
-                _settingsView = new SettingsView(_authService, this);
+                _settingsView = new SettingsView(_authService, _qrLoginCoordinator, this);
             return _settingsView;
         }
 
@@ -67,6 +79,7 @@ namespace SeewoAutoLogin
             if (Config.Accounts.Count == 1)
                 Config.ActiveAccountId = account.Id;
             SaveConfig();
+            WriteDiagnosticLog($"[Account] 已保存扫码/密码登录账号; account-id={account.Id}; has-user-info={account.UserInfo != null}; password-backed={!string.IsNullOrEmpty(account.Password)}");
         }
 
         public void RemoveAccount(string accountId)
@@ -85,6 +98,27 @@ namespace SeewoAutoLogin
         }
 
         #endregion
+
+        private void WriteDiagnosticLog(string message)
+        {
+            try
+            {
+                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                var directory = Path.Combine(baseDirectory, "PluginLogs", Id);
+                var path = Path.Combine(directory, DateTime.Now.ToString("yyyy-MM-dd") + ".log");
+                var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [INFO] {message}{Environment.NewLine}";
+                lock (_diagnosticLogLock)
+                {
+                    Directory.CreateDirectory(directory);
+                    File.AppendAllText(path, line);
+                }
+                Log(message);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SeewoAutoLogin Log] {ex.GetType().Name}: {ex.Message}");
+            }
+        }
 
         #region 配置持久化
 

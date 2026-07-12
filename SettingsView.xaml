@@ -50,6 +50,31 @@
                     </DockPanel>
                 </Border>
 
+                <!-- 希沃官方扫码登录 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="10">
+                        <TextBlock x:Name="QrTitleText" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="QrDescriptionText" FontSize="12" TextWrapping="Wrap"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <Grid x:Name="QrCodePanel" Visibility="Collapsed" HorizontalAlignment="Left">
+                            <Border Padding="10" Background="White" CornerRadius="6">
+                                <Image x:Name="QrCodeImage" Width="220" Height="220" Stretch="Uniform"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock x:Name="QrStatusText" FontSize="12" TextWrapping="Wrap"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock x:Name="QrCountdownText" FontSize="11"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="StartQrLoginButton" Click="StartQrLogin_Click" Padding="14,6" Margin="0,0,8,0"/>
+                            <Button x:Name="RefreshQrLoginButton" Click="RefreshQrLogin_Click" Padding="14,6" Margin="0,0,8,0" Visibility="Collapsed"/>
+                            <Button x:Name="CancelQrLoginButton" Click="CancelQrLogin_Click" Padding="14,6" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 登录区域 -->
                 <Border x:Name="LoginPanel" CornerRadius="8" Padding="16" Visibility="Collapsed"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

@@ -1,25 +1,42 @@
 using Ink_Canvas.Plugins;
 using System;
 using System.Linq;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace SeewoAutoLogin
 {
     public partial class SettingsView : UserControl
     {
         private readonly SeewoAuthService _authService;
+        private readonly QrLoginCoordinator _qrLoginCoordinator;
         private readonly SeewoAutoLoginPlugin _plugin;
+        private readonly DispatcherTimer _qrCountdownTimer;
+        private CancellationTokenSource _passwordLoginCancellation;
+        private CancellationTokenSource _qrLoginCancellation;
+        private DateTimeOffset _qrExpiresAt;
+        private bool _qrConsentGranted;
         private bool _isUnlocked;
 
-        public SettingsView(SeewoAuthService authService, SeewoAutoLoginPlugin plugin)
+        public SettingsView(SeewoAuthService authService, QrLoginCoordinator qrLoginCoordinator, SeewoAutoLoginPlugin plugin)
         {
             InitializeComponent();
             _authService = authService;
+            _qrLoginCoordinator = qrLoginCoordinator;
             _plugin = plugin;
+            _qrLoginCoordinator.StateChanged += QrLoginCoordinator_StateChanged;
+            _qrCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _qrCountdownTimer.Tick += QrCountdownTimer_Tick;
+            Unloaded += SettingsView_Unloaded;
+            ApplyLocalizedQrText();
 
             LoadPasswordSettings();
             CheckPasswordGate();
@@ -244,6 +261,7 @@ namespace SeewoAutoLogin
 
         private void CancelLogin_Click(object sender, RoutedEventArgs e)
         {
+            _passwordLoginCancellation?.Cancel();
             LoginPanel.Visibility = Visibility.Collapsed;
         }
 
@@ -259,11 +277,16 @@ namespace SeewoAutoLogin
                 return;
             }
 
+            _passwordLoginCancellation?.Cancel();
+            _passwordLoginCancellation?.Dispose();
+            _passwordLoginCancellation = new CancellationTokenSource();
+            var loginCancellation = _passwordLoginCancellation;
+
             LoginButton.IsEnabled = false;
             LoginButton.Content = "登录中...";
             LoginStatus.Text = "正在验证...";
 
-            var result = await _authService.LoginAsync(username, password);
+            var result = await _authService.LoginAsync(username, password, loginCancellation.Token);
 
             if (result.Success)
             {
@@ -287,6 +310,174 @@ namespace SeewoAutoLogin
 
             LoginButton.IsEnabled = true;
             LoginButton.Content = "登录并保存";
+            if (ReferenceEquals(_passwordLoginCancellation, loginCancellation))
+            {
+                _passwordLoginCancellation.Dispose();
+                _passwordLoginCancellation = null;
+            }
+        }
+
+        #endregion
+
+        #region 扫码登录
+
+        private void ApplyLocalizedQrText()
+        {
+            QrTitleText.Text = Strings.QrTitle;
+            QrDescriptionText.Text = Strings.QrDescription;
+            StartQrLoginButton.Content = Strings.Start;
+            RefreshQrLoginButton.Content = Strings.Refresh;
+            CancelQrLoginButton.Content = Strings.Cancel;
+        }
+
+        private async void StartQrLogin_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_qrConsentGranted)
+            {
+                var dialog = new iNKORE.UI.WPF.Modern.Controls.ContentDialog
+                {
+                    Title = Strings.QrConsentTitle,
+                    Content = Strings.QrConsent,
+                    PrimaryButtonText = Strings.Continue,
+                    SecondaryButtonText = Strings.Cancel,
+                    Owner = Window.GetWindow(this)
+                };
+                if (await dialog.ShowAsync() != iNKORE.UI.WPF.Modern.Controls.ContentDialogResult.Primary)
+                    return;
+                _qrConsentGranted = true;
+            }
+
+            await StartQrLoginAsync();
+        }
+
+        private async void RefreshQrLogin_Click(object sender, RoutedEventArgs e)
+        {
+            await StartQrLoginAsync();
+        }
+
+        private void CancelQrLogin_Click(object sender, RoutedEventArgs e)
+        {
+            _qrLoginCancellation?.Cancel();
+            _qrLoginCoordinator.Cancel();
+        }
+
+        private async Task StartQrLoginAsync()
+        {
+            _qrLoginCancellation?.Cancel();
+            _qrLoginCancellation?.Dispose();
+            _qrLoginCancellation = new CancellationTokenSource();
+            var cancellation = _qrLoginCancellation;
+            try
+            {
+                var outcome = await _qrLoginCoordinator.StartAsync(cancellation.Token);
+                if (outcome == null || cancellation.IsCancellationRequested) return;
+
+                _authService.AcceptQrLogin(outcome);
+                var username = !string.IsNullOrWhiteSpace(outcome.UserInfo?.Phone)
+                    ? outcome.UserInfo.Phone
+                    : outcome.UserInfo?.UserName ?? "";
+                var account = new SeewoAccount
+                {
+                    DisplayName = outcome.UserInfo?.NickName ?? outcome.UserInfo?.RealName ?? Strings.AccountFallback,
+                    Username = username,
+                    Password = "",
+                    UserInfo = outcome.UserInfo
+                };
+                _plugin.AddAccount(account);
+                RefreshAccountList();
+                UpdateUserInfo(outcome.UserInfo);
+                QrStatusText.Text = Strings.Saved;
+            }
+            finally
+            {
+                if (ReferenceEquals(_qrLoginCancellation, cancellation))
+                {
+                    _qrLoginCancellation.Dispose();
+                    _qrLoginCancellation = null;
+                }
+            }
+        }
+
+        private void QrLoginCoordinator_StateChanged(object sender, QrLoginStateChangedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() => RenderQrState(e)));
+        }
+
+        private void RenderQrState(QrLoginStateChangedEventArgs e)
+        {
+            var active = e.State == QrLoginState.CreatingQrCode ||
+                         e.State == QrLoginState.WaitingForScan ||
+                         e.State == QrLoginState.WaitingForConfirmation ||
+                         e.State == QrLoginState.Completing;
+            StartQrLoginButton.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+            CancelQrLoginButton.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            RefreshQrLoginButton.Visibility = e.State == QrLoginState.Expired ||
+                                               e.State == QrLoginState.NetworkError ||
+                                               e.State == QrLoginState.ProtocolError ||
+                                               e.State == QrLoginState.Denied
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            if (e.Session != null && e.Session.ImageBytes.Length > 0 && QrCodeImage.Source == null)
+            {
+                QrCodeImage.Source = LoadBitmap(e.Session.ImageBytes);
+                QrCodePanel.Visibility = Visibility.Visible;
+                _qrExpiresAt = e.Session.ExpiresAt;
+                _qrCountdownTimer.Start();
+            }
+
+            QrStatusText.Text = e.State switch
+            {
+                QrLoginState.CreatingQrCode => Strings.Creating,
+                QrLoginState.WaitingForScan => Strings.WaitingForScan,
+                QrLoginState.WaitingForConfirmation => Strings.WaitingForConfirmation,
+                QrLoginState.Completing => Strings.Completing,
+                QrLoginState.Succeeded => Strings.Succeeded,
+                QrLoginState.Expired => Strings.Expired,
+                QrLoginState.Cancelled => Strings.Cancelled,
+                QrLoginState.Denied => Strings.Denied,
+                QrLoginState.NetworkError => Strings.NetworkError,
+                QrLoginState.ProtocolError => string.IsNullOrWhiteSpace(e.Message) ? Strings.ProtocolError : e.Message,
+                _ => ""
+            };
+
+            if (!active)
+            {
+                _qrCountdownTimer.Stop();
+                QrCountdownText.Text = "";
+                if (e.State != QrLoginState.Succeeded)
+                {
+                    QrCodeImage.Source = null;
+                    QrCodePanel.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void QrCountdownTimer_Tick(object sender, EventArgs e)
+        {
+            var seconds = Math.Max(0, (int)Math.Ceiling((_qrExpiresAt - DateTimeOffset.UtcNow).TotalSeconds));
+            QrCountdownText.Text = Strings.SecondsRemaining(seconds);
+            if (seconds == 0) _qrCountdownTimer.Stop();
+        }
+
+        private static BitmapImage LoadBitmap(byte[] bytes)
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+
+        private void SettingsView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            _passwordLoginCancellation?.Cancel();
+            _qrLoginCancellation?.Cancel();
+            _qrLoginCoordinator.Cancel();
+            _qrCountdownTimer.Stop();
         }
 
         #endregion

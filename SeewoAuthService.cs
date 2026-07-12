@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SeewoAutoLogin
@@ -37,7 +38,7 @@ namespace SeewoAutoLogin
         /// <summary>
         /// 登录希沃教育平台。
         /// </summary>
-        public async Task<SeewoLoginResult> LoginAsync(string username, string password)
+        public async Task<SeewoLoginResult> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -60,15 +61,15 @@ namespace SeewoAutoLogin
                 request.Headers.Add("X-APM-TraceId", traceId);
                 request.Headers.Add("Cookie", "x-auth-app=EasiNote5; x-auth-token=");
 
-                var response = await _http.SendAsync(request);
-                var body = await response.Content.ReadAsStringAsync();
+                var response = await _http.SendAsync(request, cancellationToken);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     return new SeewoLoginResult
                     {
                         Success = false,
-                        ErrorMessage = $"HTTP {(int)response.StatusCode}: {body}"
+                        ErrorMessage = $"HTTP {(int)response.StatusCode}"
                     };
                 }
 
@@ -92,7 +93,7 @@ namespace SeewoAutoLogin
                 _tokenTime = DateTime.Now;
 
                 // 获取用户信息
-                await FetchUserInfoAsync();
+                await FetchUserInfoAsync(cancellationToken);
 
                 return new SeewoLoginResult
                 {
@@ -100,6 +101,10 @@ namespace SeewoAutoLogin
                     Token = token,
                     UserInfo = _userInfo
                 };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return new SeewoLoginResult { Success = false, ErrorMessage = "已取消" };
             }
             catch (TaskCanceledException)
             {
@@ -114,7 +119,7 @@ namespace SeewoAutoLogin
         /// <summary>
         /// 使用已保存的 token 获取用户信息。
         /// </summary>
-        public async Task<SeewoUserInfo> FetchUserInfoAsync()
+        public async Task<SeewoUserInfo> FetchUserInfoAsync(CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrEmpty(_token)) return null;
 
@@ -126,10 +131,10 @@ namespace SeewoAutoLogin
                 request.Headers.Add("X-Crypto-Version", "1");
                 request.Headers.Add("Cookie", $"x-auth-app=EasiNoteAndroid; x-auth-token={_token}");
 
-                var response = await _http.SendAsync(request);
+                var response = await _http.SendAsync(request, cancellationToken);
                 if (!response.IsSuccessStatusCode) return null;
 
-                var body = await response.Content.ReadAsStringAsync();
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 using var doc = JsonDocument.Parse(body);
                 var root = doc.RootElement;
 
@@ -156,6 +161,16 @@ namespace SeewoAutoLogin
             {
                 return null;
             }
+        }
+
+        public void AcceptQrLogin(QrLoginOutcome outcome)
+        {
+            if (outcome == null || string.IsNullOrWhiteSpace(outcome.Token))
+                throw new ArgumentException("扫码登录结果无效。", nameof(outcome));
+
+            _token = outcome.Token;
+            _userInfo = outcome.UserInfo;
+            _tokenTime = DateTime.Now;
         }
 
         public void Logout()
