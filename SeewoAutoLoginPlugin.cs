@@ -34,8 +34,7 @@ namespace SeewoAutoLogin
             _qrLoginClient = new SeewoQrLoginClient();
             _qrLoginCoordinator = new QrLoginCoordinator(_qrLoginClient);
             _qrSessionStore = new QrSessionStore();
-            var windowOverview = host.GetService<IWindowOverviewService>();
-            _userListRotation = new SeewoUserListRotationService(windowOverview, () => Config);
+            _userListRotation = new SeewoUserListRotationService();
             _qrLoginClient.LogMessage += WriteDiagnosticLog;
             _qrLoginCoordinator.LogMessage += WriteDiagnosticLog;
             services.AddSingleton(_authService);
@@ -43,6 +42,9 @@ namespace SeewoAutoLogin
             services.AddSingleton(_qrLoginCoordinator);
             services.AddSingleton(_qrSessionStore);
             services.AddSingleton(_userListRotation);
+            Log($"用户列表轮换器初始化; mode=request-driven; reconnect-window-seconds=10");
+            _userListRotation.RotationChanged += (groupIndex, withinWindow) =>
+                WriteDiagnosticLog($"[Rotation] SSO request -> group {groupIndex + 1}; within-10s={withinWindow}");
 
             LoadConfig();
 
@@ -51,7 +53,7 @@ namespace SeewoAutoLogin
             {
                 account.UserInfo = _authService.UserInfo;
                 SaveConfig();
-            });
+            }, _userListRotation);
             _gateway.LogMessage += msg => Log(msg);
             try
             {
@@ -82,12 +84,20 @@ namespace SeewoAutoLogin
 
         public IReadOnlyList<SeewoAccount> GetVisibleAccounts()
         {
-            return _userListRotation?.SelectAccounts(Config.Accounts) ?? Config.Accounts;
+            return Config.Accounts;
         }
 
-        public string UserListRotationStatus => _userListRotation == null || !_userListRotation.IsLoginWindowOpen
-            ? ""
-            : $"第 {_userListRotation.CurrentGroupIndex + 1} 组";
+        public string UserListRotationStatus
+        {
+            get
+            {
+                if (_userListRotation == null) return "";
+                var rotation = _userListRotation;
+                var totalRequests = rotation.TotalRequests;
+                if (totalRequests <= 1) return "";
+                return $"第 {rotation.CurrentGroupIndex + 1} 组";
+            }
+        }
 
         #region 账号管理
 

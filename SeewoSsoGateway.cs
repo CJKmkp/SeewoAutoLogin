@@ -25,6 +25,7 @@ namespace SeewoAutoLogin
         private readonly Func<SeewoAccount, bool> _tryRestoreQrSession;
         private readonly Func<IReadOnlyList<SeewoAccount>> _getVisibleAccounts;
         private readonly Action<SeewoAccount> _onLoginSuccess;
+        private readonly SeewoUserListRotationService _userListRotation;
 
         public int Port { get; set; } = 24300;
         public bool IsRunning => _listener?.IsListening == true;
@@ -34,13 +35,15 @@ namespace SeewoAutoLogin
             Func<PluginConfig> getConfig,
             Func<SeewoAccount, bool> tryRestoreQrSession,
             Func<IReadOnlyList<SeewoAccount>> getVisibleAccounts,
-            Action<SeewoAccount> onLoginSuccess)
+            Action<SeewoAccount> onLoginSuccess,
+            SeewoUserListRotationService userListRotation)
         {
             _authService = authService;
             _getConfig = getConfig;
             _tryRestoreQrSession = tryRestoreQrSession;
             _getVisibleAccounts = getVisibleAccounts;
             _onLoginSuccess = onLoginSuccess;
+            _userListRotation = userListRotation;
         }
 
         private const string SeeSoLocalHost = "local.id.seewo.com";
@@ -226,8 +229,18 @@ namespace SeewoAutoLogin
                 if (req.HttpMethod == "GET" && path.Equals("/getData/SSOLOGIN", StringComparison.OrdinalIgnoreCase))
                 {
                     var config = _getConfig();
-                    var accounts = (_getVisibleAccounts?.Invoke() ?? config.Accounts)
+                    var sourceAccounts = (_getVisibleAccounts?.Invoke() ?? (IReadOnlyList<SeewoAccount>)Array.Empty<SeewoAccount>())
                         .Where(a => !string.IsNullOrEmpty(a.Username))
+                        .ToList();
+
+                    List<SeewoAccount> visibleAccounts = sourceAccounts;
+                    var routeIndex = 0;
+                    if (config.UserListRotationEnabled && sourceAccounts.Count > SeewoUserListRotationService.NormalizeGroupSize(config.UserListRotationGroupSize) && _userListRotation != null)
+                    {
+                        visibleAccounts = _userListRotation.SelectAccountsForRequest(sourceAccounts, out routeIndex, config.UserListRotationGroupSize).ToList();
+                    }
+
+                    var accounts = visibleAccounts
                         .Select(a => new Dictionary<string, string>
                         {
                             { "pt_nickname", a.DisplayName ?? a.UserInfo?.NickName ?? a.Username },
@@ -239,7 +252,9 @@ namespace SeewoAutoLogin
                         .ToList();
 
                     await WriteJson(resp, new { message = "success", statusCode = "200", data = accounts });
-                    Log($"SSOLOGIN: 返回 {accounts.Count} 个账号");
+                    Log(config.UserListRotationEnabled
+                        ? $"SSOLOGIN: 返回第 {routeIndex + 1} 组 {accounts.Count} 个账号"
+                        : $"SSOLOGIN: 返回 {accounts.Count} 个账号");
                     return;
                 }
 
