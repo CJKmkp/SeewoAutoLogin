@@ -169,7 +169,7 @@ namespace SeewoAutoLogin
             try
             {
                 _qrSessionStore.Save(account.QrCredentialId, token, DateTimeOffset.UtcNow);
-                WriteDiagnosticLog($"[Session] checkToken 返回新 Token，已更新 DPAPI 凭据; account-id={account.Id}");
+                WriteDiagnosticLog($"[Session] Token 换发返回新 Token，已更新 DPAPI 凭据; account-id={account.Id}");
             }
             catch (Exception ex)
             {

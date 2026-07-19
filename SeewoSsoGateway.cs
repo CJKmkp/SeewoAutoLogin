@@ -13,8 +13,7 @@ using System.Threading.Tasks;
 namespace SeewoAutoLogin
 {
     /// <summary>
-    /// 本地 HTTP 服务器，模拟 Fast-EasiLogin 的 SSO 网关。
-    /// 希沃白板 (EasiNote5) 会连接此服务器获取账号列表和登录 token。
+    /// 本地 HTTP 服务器，提供 SSO 网关服务。
     /// </summary>
     public class SeewoSsoGateway : IDisposable
     {
@@ -286,16 +285,16 @@ namespace SeewoAutoLogin
                         {
                             if (_getConfig()?.ExperimentalRefreshQrTokenOnLogin == true)
                             {
-                                loginResult = await _authService.ValidateCurrentTokenAsync();
+                                loginResult = await _authService.ExchangeCurrentTokenAsync();
                                 if (!loginResult.Success)
                                 {
                                     resp.StatusCode = 401;
-                                    await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401" });
-                                    Log($"SSOLOGIN/{userId}: 实验性 checkToken 刷新失败，需要重新扫码; reason={loginResult.ErrorMessage}");
+                                    await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401", detail = loginResult.ErrorMessage });
+                                    Log($"SSOLOGIN/{userId}: Token 换发失败，需要重新扫码; reason={loginResult.ErrorMessage}");
                                     return;
                                 }
                                 _onQrTokenValidated?.Invoke(account, loginResult.Token);
-                                Log($"SSOLOGIN/{userId}: 实验性 checkToken 刷新通过，已更新持久化 Token");
+                                Log($"SSOLOGIN/{userId}: Token 换发成功，已更新持久化 Token");
                             }
                             else
                             {

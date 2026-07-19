@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,6 +17,7 @@ namespace SeewoAutoLogin
         private const string SEEWO_EDU_BASE = "https://edu.seewo.com";
         private const string LOGIN_URL = SEEWO_EDU_BASE + "/api/v1/auth/login";
         private const string USER_INFO_URL = SEEWO_EDU_BASE + "/api/v2/user/info";
+        private const string TOKEN_EXCHANGE_URL = "https://account.seewo.com/seewo-account/api/v1/auth/";
         private const string AUTH_APP = "EasiNoteAndroid";
         private const string AUTH_REFER = "EnAppAndroid";
         private const string USER_AGENT = "okhttp/3.12.12";
@@ -234,6 +236,66 @@ namespace SeewoAutoLogin
             }
         }
 
+        /// <summary>
+        /// 使用已有 Token 获取新的登录 Token。
+        /// </summary>
+        public async Task<SeewoLoginResult> ExchangeCurrentTokenAsync(CancellationToken cancellationToken = default)
+        {
+            var oldToken = _token;
+            DiagnosticMessage?.Invoke($"[TokenExchange] start; old-token-present={!string.IsNullOrWhiteSpace(oldToken)}");
+            if (string.IsNullOrWhiteSpace(oldToken))
+                return new SeewoLoginResult { Success = false, ErrorMessage = "没有可用的登录令牌" };
+
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, TOKEN_EXCHANGE_URL + Uri.EscapeDataString(oldToken) + "/exchange");
+                request.Headers.TryAddWithoutValidation("x-auth-app", "EasiNote5");
+                request.Headers.TryAddWithoutValidation("Cookie", "x-auth-app=EasiNote5");
+                request.Headers.TryAddWithoutValidation("Accept", "application/json");
+                using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                DiagnosticMessage?.Invoke($"[TokenExchange] response; status={(int)response.StatusCode}; content-type={response.Content.Headers.ContentType?.MediaType ?? "<missing>"}; body={SanitizeJsonForLog(body)}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    DiagnosticMessage?.Invoke($"[TokenExchange] result=http-error; status={(int)response.StatusCode}");
+                    return new SeewoLoginResult { Success = false, ErrorMessage = $"HTTP {(int)response.StatusCode}" };
+                }
+
+                using var document = JsonDocument.Parse(body);
+                var root = document.RootElement;
+                var data = root.TryGetProperty("data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Object
+                    ? dataElement : root;
+                var newToken = GetJsonString(data, "token");
+                if (string.IsNullOrWhiteSpace(newToken))
+                {
+                    var message = GetJsonString(root, "message") ?? GetJsonString(root, "msg") ?? "Token 换发失败";
+                    DiagnosticMessage?.Invoke("[TokenExchange] result=invalid; new-token-present=false");
+                    return new SeewoLoginResult { Success = false, ErrorMessage = message };
+                }
+
+                _token = newToken;
+                var changed = !string.Equals(oldToken, newToken, StringComparison.Ordinal);
+                await FetchUserInfoAsync(cancellationToken).ConfigureAwait(false);
+                DiagnosticMessage?.Invoke($"[TokenExchange] result=success; new-token-present=true; token-changed={changed}; user-info-present={_userInfo != null}");
+                return new SeewoLoginResult { Success = true, Token = _token, UserInfo = _userInfo };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                DiagnosticMessage?.Invoke("[TokenExchange] result=cancelled");
+                return new SeewoLoginResult { Success = false, ErrorMessage = "已取消" };
+            }
+            catch (TaskCanceledException)
+            {
+                DiagnosticMessage?.Invoke("[TokenExchange] result=timeout");
+                return new SeewoLoginResult { Success = false, ErrorMessage = "Token 换发超时" };
+            }
+            catch (Exception ex)
+            {
+                DiagnosticMessage?.Invoke($"[TokenExchange] result=error; type={ex.GetType().Name}");
+                return new SeewoLoginResult { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
         private static async Task<QrLoginOutcome> ValidateTokenWithCheckTokenAsync(string token, CancellationToken cancellationToken)
         {
             using var client = new SeewoQrLoginClient();
@@ -251,6 +313,45 @@ namespace SeewoAutoLogin
         {
             _token = null;
             _userInfo = null;
+        }
+
+        private static string SanitizeJsonForLog(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body)) return "<empty>";
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                return SanitizeJsonElement(document.RootElement);
+            }
+            catch
+            {
+                return $"<non-json,length={body.Length}>";
+            }
+        }
+
+        private static string SanitizeJsonElement(JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.Object => "{" + string.Join(",", element.EnumerateObject().Select(property =>
+                    $"\"{property.Name}\":{(IsSensitiveJsonField(property.Name) ? "\"<redacted>\"" : SanitizeJsonElement(property.Value))}")) + "}",
+                JsonValueKind.Array => "[" + string.Join(",", element.EnumerateArray().Select(SanitizeJsonElement)) + "]",
+                JsonValueKind.String => JsonSerializer.Serialize(element.GetString()),
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Null => "null",
+                _ => "null"
+            };
+        }
+
+        private static bool IsSensitiveJsonField(string name)
+        {
+            return name.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("access", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("cookie", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("phone", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string GetJsonString(JsonElement el, string name)
