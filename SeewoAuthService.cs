@@ -194,7 +194,7 @@ namespace SeewoAutoLogin
         {
             return IsLoggedIn
                 ? new SeewoLoginResult { Success = true, Token = _token, UserInfo = _userInfo }
-                : new SeewoLoginResult { Success = false, ErrorMessage = "登录信息已过期" };
+                : new SeewoLoginResult { Success = false, ErrorMessage = "没有可用的登录令牌" };
         }
 
         public void Logout()
