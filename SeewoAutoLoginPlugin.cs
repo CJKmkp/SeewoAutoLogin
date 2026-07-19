@@ -175,7 +175,7 @@ namespace SeewoAutoLogin
                 return false;
             }
 
-            _authService.RestoreQrSession(session.Token, account.UserInfo, session.AcquiredAtUtc);
+            _authService.RestoreQrSession(session.Token, account.UserInfo);
             var restored = _authService.IsSessionFor(account);
             WriteDiagnosticLog($"[Session] 扫码会话恢复; account-id={account.Id}; restored={restored}");
             return restored;
