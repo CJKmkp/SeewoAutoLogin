@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace SeewoAutoLogin
@@ -9,7 +10,6 @@ namespace SeewoAutoLogin
     {
         public bool UserListRotationEnabled { get; set; }
         public int UserListRotationGroupSize { get; set; } = 6;
-        public bool ExperimentalRefreshQrTokenOnLogin { get; set; }
         public List<SeewoAccount> Accounts { get; set; } = new List<SeewoAccount>();
         public string ActiveAccountId { get; set; } = "";
         public bool AutoLogin { get; set; }
@@ -29,6 +29,7 @@ namespace SeewoAutoLogin
         public string Username { get; set; } = "";
         public string Password { get; set; } = "";
         public string QrCredentialId { get; set; } = "";
+        public DateTimeOffset? LastTokenExchangeAtUtc { get; set; }
         public SeewoUserInfo UserInfo { get; set; }
     }
 }

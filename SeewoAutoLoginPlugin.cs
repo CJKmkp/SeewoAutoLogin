@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SeewoAutoLogin
 {
@@ -18,6 +20,7 @@ namespace SeewoAutoLogin
         private SeewoUserListRotationService _userListRotation;
         private SeewoSsoGateway _gateway;
         private SettingsView _settingsView;
+        private Timer _dailyTokenRefreshTimer;
         private readonly object _diagnosticLogLock = new object();
 
         public PluginConfig Config { get; private set; } = new PluginConfig();
@@ -59,6 +62,7 @@ namespace SeewoAutoLogin
             try
             {
                 _gateway.Start();
+                StartDailyTokenRefresh();
             }
             catch (Exception ex)
             {
@@ -69,6 +73,7 @@ namespace SeewoAutoLogin
         public override void Shutdown()
         {
             _qrLoginCoordinator?.Dispose();
+            _dailyTokenRefreshTimer?.Dispose();
             _userListRotation?.Dispose();
             _qrLoginClient?.Dispose();
             _gateway?.Dispose();
@@ -234,6 +239,30 @@ namespace SeewoAutoLogin
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[SeewoAutoLogin Log] {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private void StartDailyTokenRefresh()
+        {
+            _dailyTokenRefreshTimer = new Timer(_ => _ = RefreshTokensAsync(), null, TimeSpan.FromDays(1), TimeSpan.FromDays(1));
+        }
+
+        private async Task RefreshTokensAsync()
+        {
+            foreach (var account in Config.Accounts.Where(account => string.IsNullOrEmpty(account.Password) && !string.IsNullOrWhiteSpace(account.QrCredentialId)).ToList())
+            {
+                try
+                {
+                    if (!TryRestoreQrSession(account)) continue;
+                    var result = await _authService.ExchangeCurrentTokenAsync().ConfigureAwait(false);
+                    if (!result.Success) continue;
+                    OnQrTokenValidated(account, result.Token);
+                    WriteDiagnosticLog($"[Scheduler] Token 自动刷新成功; account-id={account.Id}");
+                }
+                catch (Exception ex)
+                {
+                    WriteDiagnosticLog($"[Scheduler] Token 自动刷新失败; account-id={account.Id}; error={ex.GetType().Name}");
+                }
             }
         }
 

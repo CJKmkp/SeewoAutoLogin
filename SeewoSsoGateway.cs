@@ -283,30 +283,20 @@ namespace SeewoAutoLogin
 
                         if (_authService.IsSessionFor(account))
                         {
-                            if (_getConfig()?.ExperimentalRefreshQrTokenOnLogin == true)
+                            loginResult = await _authService.ExchangeCurrentTokenAsync();
+                            if (!loginResult.Success)
                             {
-                                loginResult = await _authService.ExchangeCurrentTokenAsync();
-                                if (!loginResult.Success)
-                                {
-                                    resp.StatusCode = 401;
-                                    await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401", detail = loginResult.ErrorMessage });
-                                    Log($"SSOLOGIN/{userId}: Token 换发失败，需要重新扫码; reason={loginResult.ErrorMessage}");
-                                    return;
-                                }
-                                _onQrTokenValidated?.Invoke(account, loginResult.Token);
-                                Log($"SSOLOGIN/{userId}: Token 换发成功，已更新持久化 Token");
+                                resp.StatusCode = 401;
+                                await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401", detail = loginResult.ErrorMessage });
+                                Log($"SSOLOGIN/{userId}: Token 换发失败，需要重新扫码; reason={loginResult.ErrorMessage}");
+                                return;
                             }
-                            else
-                            {
-                                loginResult = _authService.GetCurrentLoginResult();
-                            }
+                            _onQrTokenValidated?.Invoke(account, loginResult.Token);
+                            Log($"SSOLOGIN/{userId}: Token 换发成功，已更新持久化 Token");
                         }
                         else
                         {
-                            resp.StatusCode = 401;
-                            await WriteJson(resp, new { message = "qr_session_required", statusCode = "401" });
-                            Log($"SSOLOGIN/{userId}: 扫码会话不可用，需要重新扫码");
-                            return;
+                            loginResult = _authService.GetCurrentLoginResult();
                         }
                     }
                     else

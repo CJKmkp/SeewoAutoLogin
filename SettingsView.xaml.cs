@@ -38,7 +38,6 @@ namespace SeewoAutoLogin
             Unloaded += SettingsView_Unloaded;
             ApplyLocalizedQrText();
             ApplyRotationSettings();
-            ApplyExperimentalTokenRefreshSettings();
 
             LoadPasswordSettings();
             CheckPasswordGate();
@@ -508,25 +507,6 @@ namespace SeewoAutoLogin
             if (!_isUnlocked || RotationGroupSizeComboBox?.SelectedItem is not ComboBoxItem item) return;
             if (!int.TryParse(item.Tag?.ToString(), out var size)) return;
             _plugin.Config.UserListRotationGroupSize = SeewoUserListRotationService.NormalizeGroupSize(size);
-            _plugin.SaveConfig();
-        }
-
-        #endregion
-
-        #region Token 刷新实验功能
-
-        private void ApplyExperimentalTokenRefreshSettings()
-        {
-            ExperimentalTokenRefreshTitleText.Text = Strings.ExperimentalTokenRefreshTitle;
-            ExperimentalTokenRefreshCheckBox.Content = Strings.ExperimentalTokenRefreshTitle;
-            ExperimentalTokenRefreshDescriptionText.Text = Strings.ExperimentalTokenRefreshDescription;
-            ExperimentalTokenRefreshCheckBox.IsChecked = _plugin.Config.ExperimentalRefreshQrTokenOnLogin;
-        }
-
-        private void ExperimentalTokenRefresh_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!_isUnlocked || ExperimentalTokenRefreshCheckBox == null) return;
-            _plugin.Config.ExperimentalRefreshQrTokenOnLogin = ExperimentalTokenRefreshCheckBox.IsChecked == true;
             _plugin.SaveConfig();
         }
 
