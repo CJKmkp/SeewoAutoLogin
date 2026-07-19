@@ -92,7 +92,6 @@ namespace SeewoAutoLogin
                 }
 
                 _token = token;
-                _tokenTime = DateTime.Now;
 
                 // 获取用户信息
                 await FetchUserInfoAsync(cancellationToken);
