@@ -179,7 +179,6 @@ namespace SeewoAutoLogin
 
             _token = token;
             _userInfo = userInfo;
-            _tokenTime = acquiredAt.LocalDateTime;
         }
 
         public bool IsSessionFor(SeewoAccount account)
