@@ -172,7 +172,7 @@ namespace SeewoAutoLogin
             _userInfo = outcome.UserInfo;
         }
 
-        public void RestoreQrSession(string token, SeewoUserInfo userInfo, DateTimeOffset acquiredAt)
+        public void RestoreQrSession(string token, SeewoUserInfo userInfo)
         {
             if (string.IsNullOrWhiteSpace(token))
                 throw new ArgumentException("扫码会话令牌无效。", nameof(token));
