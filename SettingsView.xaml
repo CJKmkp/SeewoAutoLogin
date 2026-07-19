@@ -95,6 +95,18 @@
                     </ikw:SimpleStackPanel>
                 </Border>
 
+                <!-- 扫码 Token 实验功能 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock x:Name="ExperimentalTokenRefreshTitleText" FontSize="14" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="ExperimentalTokenRefreshCheckBox" Checked="ExperimentalTokenRefresh_Changed" Unchecked="ExperimentalTokenRefresh_Changed"/>
+                        <TextBlock x:Name="ExperimentalTokenRefreshDescriptionText" FontSize="11" TextWrapping="Wrap"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 希沃官方扫码登录 -->
                 <Border CornerRadius="8" Padding="16"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

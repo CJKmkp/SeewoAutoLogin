@@ -53,7 +53,7 @@ namespace SeewoAutoLogin
             {
                 account.UserInfo = _authService.UserInfo;
                 SaveConfig();
-            }, _userListRotation);
+            }, OnQrTokenValidated, _userListRotation);
             _gateway.LogMessage += msg => Log(msg);
             try
             {
@@ -159,6 +159,21 @@ namespace SeewoAutoLogin
             if (Config.ActiveAccountId == accountId)
                 Config.ActiveAccountId = Config.Accounts.FirstOrDefault()?.Id ?? "";
             SaveConfig();
+        }
+
+        public void OnQrTokenValidated(SeewoAccount account, string token)
+        {
+            if (account == null || string.IsNullOrWhiteSpace(account.QrCredentialId) || string.IsNullOrWhiteSpace(token))
+                return;
+            try
+            {
+                _qrSessionStore.Save(account.QrCredentialId, token, DateTimeOffset.UtcNow);
+                WriteDiagnosticLog($"[Session] checkToken 返回新 Token，已更新 DPAPI 凭据; account-id={account.Id}");
+            }
+            catch (Exception ex)
+            {
+                WriteDiagnosticLog($"[Session] 更新 DPAPI 凭据失败; account-id={account.Id}; error={ex.GetType().Name}");
+            }
         }
 
         public bool TryRestoreQrSession(SeewoAccount account)

@@ -9,6 +9,7 @@ namespace SeewoAutoLogin
     {
         public bool UserListRotationEnabled { get; set; }
         public int UserListRotationGroupSize { get; set; } = 6;
+        public bool ExperimentalRefreshQrTokenOnLogin { get; set; }
         public List<SeewoAccount> Accounts { get; set; } = new List<SeewoAccount>();
         public string ActiveAccountId { get; set; } = "";
         public bool AutoLogin { get; set; }

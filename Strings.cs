@@ -36,5 +36,7 @@ namespace SeewoAutoLogin
         public static string RotationGroupSize => IsEnglish ? "Users per group" : "每组用户数";
         public static string RotationStatus(int group) => IsEnglish ? $"Current group: {group}" : $"当前列表：第 {group} 组";
         public static string RotationHint => IsEnglish ? "Disabled by default. Reopening within 10 seconds switches to the next group." : "默认关闭。窗口关闭后 10 秒内重新打开会切换到下一组。";
+        public static string ExperimentalTokenRefreshTitle => IsEnglish ? "Experimental: refresh QR token before SSO login" : "实验功能：SSO 登录前刷新扫码 Token";
+        public static string ExperimentalTokenRefreshDescription => IsEnglish ? "Call Seewo checkToken before each QR-account SSO login and persist the returned token. Disabled by default." : "每次扫码账号 SSO 登录前调用希沃 checkToken，并保存服务端返回的新 Token。默认关闭。";
     }
 }

@@ -37,6 +37,7 @@ namespace SeewoAutoLogin
             Func<SeewoAccount, bool> tryRestoreQrSession,
             Func<IReadOnlyList<SeewoAccount>> getVisibleAccounts,
             Action<SeewoAccount> onLoginSuccess,
+            Action<SeewoAccount, string> onQrTokenValidated,
             SeewoUserListRotationService userListRotation)
         {
             _authService = authService;
@@ -44,6 +45,7 @@ namespace SeewoAutoLogin
             _tryRestoreQrSession = tryRestoreQrSession;
             _getVisibleAccounts = getVisibleAccounts;
             _onLoginSuccess = onLoginSuccess;
+            _onQrTokenValidated = onQrTokenValidated;
             _userListRotation = userListRotation;
         }
 
@@ -282,15 +284,23 @@ namespace SeewoAutoLogin
 
                         if (_authService.IsSessionFor(account))
                         {
-                            loginResult = await _authService.ValidateCurrentTokenAsync();
-                            if (!loginResult.Success)
+                            if (_getConfig()?.ExperimentalRefreshQrTokenOnLogin == true)
                             {
-                                resp.StatusCode = 401;
-                                await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401" });
-                                Log($"SSOLOGIN/{userId}: checkToken 校验失败，需要重新扫码; reason={loginResult.ErrorMessage}");
-                                return;
+                                loginResult = await _authService.ValidateCurrentTokenAsync();
+                                if (!loginResult.Success)
+                                {
+                                    resp.StatusCode = 401;
+                                    await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401" });
+                                    Log($"SSOLOGIN/{userId}: 实验性 checkToken 刷新失败，需要重新扫码; reason={loginResult.ErrorMessage}");
+                                    return;
+                                }
+                                _onQrTokenValidated?.Invoke(account, loginResult.Token);
+                                Log($"SSOLOGIN/{userId}: 实验性 checkToken 刷新通过，已更新持久化 Token");
                             }
-                            Log($"SSOLOGIN/{userId}: checkToken 校验通过");
+                            else
+                            {
+                                loginResult = _authService.GetCurrentLoginResult();
+                            }
                         }
                         else
                         {
