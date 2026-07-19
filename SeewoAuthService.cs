@@ -190,31 +190,46 @@ namespace SeewoAutoLogin
                    string.Equals(_userInfo.UserName, account.UserInfo.UserName, StringComparison.Ordinal);
         }
 
+        public event Action<string> DiagnosticMessage;
+
         public async Task<SeewoLoginResult> ValidateCurrentTokenAsync(CancellationToken cancellationToken = default)
         {
+            var oldToken = _token;
+            DiagnosticMessage?.Invoke($"[TokenCheck] start; old-token-present={!string.IsNullOrWhiteSpace(oldToken)}");
             if (string.IsNullOrWhiteSpace(_token))
+            {
+                DiagnosticMessage?.Invoke("[TokenCheck] skipped; reason=no-token");
                 return new SeewoLoginResult { Success = false, ErrorMessage = "没有可用的登录令牌" };
+            }
 
             try
             {
                 var outcome = await ValidateTokenWithCheckTokenAsync(_token, cancellationToken).ConfigureAwait(false);
                 if (outcome == null || string.IsNullOrWhiteSpace(outcome.Token))
+                {
+                    DiagnosticMessage?.Invoke("[TokenCheck] result=invalid; new-token-present=false");
                     return new SeewoLoginResult { Success = false, ErrorMessage = "Token 已失效" };
+                }
 
+                var changed = !string.Equals(oldToken, outcome.Token, StringComparison.Ordinal);
                 _token = outcome.Token;
                 _userInfo = outcome.UserInfo ?? _userInfo;
+                DiagnosticMessage?.Invoke($"[TokenCheck] result=valid; new-token-present=true; token-changed={changed}; user-info-present={_userInfo != null}");
                 return new SeewoLoginResult { Success = true, Token = _token, UserInfo = _userInfo };
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                DiagnosticMessage?.Invoke("[TokenCheck] result=cancelled");
                 return new SeewoLoginResult { Success = false, ErrorMessage = "已取消" };
             }
-            catch (TaskCanceledException)
+            catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested == false)
             {
+                DiagnosticMessage?.Invoke("[TokenCheck] result=timeout");
                 return new SeewoLoginResult { Success = false, ErrorMessage = "Token 校验超时" };
             }
             catch (Exception ex)
             {
+                DiagnosticMessage?.Invoke($"[TokenCheck] result=error; type={ex.GetType().Name}");
                 return new SeewoLoginResult { Success = false, ErrorMessage = ex.Message };
             }
         }

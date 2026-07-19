@@ -31,6 +31,7 @@ namespace SeewoAutoLogin
             WriteDiagnosticLog($"[Plugin] 初始化; version={Version}; process={Environment.ProcessId}");
 
             _authService = new SeewoAuthService();
+            _authService.DiagnosticMessage += WriteDiagnosticLog;
             _qrLoginClient = new SeewoQrLoginClient();
             _qrLoginCoordinator = new QrLoginCoordinator(_qrLoginClient);
             _qrSessionStore = new QrSessionStore();
