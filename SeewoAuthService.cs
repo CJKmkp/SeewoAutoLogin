@@ -190,6 +190,41 @@ namespace SeewoAutoLogin
                    string.Equals(_userInfo.UserName, account.UserInfo.UserName, StringComparison.Ordinal);
         }
 
+        public async Task<SeewoLoginResult> ValidateCurrentTokenAsync(CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(_token))
+                return new SeewoLoginResult { Success = false, ErrorMessage = "没有可用的登录令牌" };
+
+            try
+            {
+                var outcome = await ValidateTokenWithCheckTokenAsync(_token, cancellationToken).ConfigureAwait(false);
+                if (outcome == null || string.IsNullOrWhiteSpace(outcome.Token))
+                    return new SeewoLoginResult { Success = false, ErrorMessage = "Token 已失效" };
+
+                _token = outcome.Token;
+                _userInfo = outcome.UserInfo ?? _userInfo;
+                return new SeewoLoginResult { Success = true, Token = _token, UserInfo = _userInfo };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return new SeewoLoginResult { Success = false, ErrorMessage = "已取消" };
+            }
+            catch (TaskCanceledException)
+            {
+                return new SeewoLoginResult { Success = false, ErrorMessage = "Token 校验超时" };
+            }
+            catch (Exception ex)
+            {
+                return new SeewoLoginResult { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        private static async Task<QrLoginOutcome> ValidateTokenWithCheckTokenAsync(string token, CancellationToken cancellationToken)
+        {
+            using var client = new SeewoQrLoginClient();
+            return await client.CheckTokenAsync(token, cancellationToken).ConfigureAwait(false);
+        }
+
         public SeewoLoginResult GetCurrentLoginResult()
         {
             return IsLoggedIn

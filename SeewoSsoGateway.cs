@@ -25,6 +25,7 @@ namespace SeewoAutoLogin
         private readonly Func<SeewoAccount, bool> _tryRestoreQrSession;
         private readonly Func<IReadOnlyList<SeewoAccount>> _getVisibleAccounts;
         private readonly Action<SeewoAccount> _onLoginSuccess;
+        private readonly Action<SeewoAccount, string> _onQrTokenValidated;
         private readonly SeewoUserListRotationService _userListRotation;
 
         public int Port { get; set; } = 24300;
@@ -281,7 +282,15 @@ namespace SeewoAutoLogin
 
                         if (_authService.IsSessionFor(account))
                         {
-                            loginResult = _authService.GetCurrentLoginResult();
+                            loginResult = await _authService.ValidateCurrentTokenAsync();
+                            if (!loginResult.Success)
+                            {
+                                resp.StatusCode = 401;
+                                await WriteJson(resp, new { message = "qr_token_invalid", statusCode = "401" });
+                                Log($"SSOLOGIN/{userId}: checkToken 校验失败，需要重新扫码; reason={loginResult.ErrorMessage}");
+                                return;
+                            }
+                            Log($"SSOLOGIN/{userId}: checkToken 校验通过");
                         }
                         else
                         {

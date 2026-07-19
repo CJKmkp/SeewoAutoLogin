@@ -94,10 +94,25 @@ namespace SeewoAutoLogin
             if (string.IsNullOrWhiteSpace(temporaryToken))
                 throw new InvalidDataException("登录响应缺少临时凭据。");
 
-            Log("校验扫码登录结果: POST /auth/checkToken, temporary-token-present=true");
+            return await CheckTokenAsync(temporaryToken, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 校验一个已获取的希沃账号 Token 是否仍然有效，并返回对应的用户信息。
+        /// </summary>
+        public Task<QrLoginOutcome> CheckTokenAsync(string token, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                throw new InvalidDataException("Token 不能为空。");
+            return CheckTokenInternalAsync(token, cancellationToken);
+        }
+
+        private async Task<QrLoginOutcome> CheckTokenInternalAsync(string token, CancellationToken cancellationToken)
+        {
+            Log("校验 Token 有效性: POST /auth/checkToken, token-present=true");
             using var request = new HttpRequestMessage(HttpMethod.Post, "auth/checkToken")
             {
-                Content = new StringContent(JsonSerializer.Serialize(new { token = temporaryToken }), Encoding.UTF8, "application/json")
+                Content = new StringContent(JsonSerializer.Serialize(new { token }), Encoding.UTF8, "application/json")
             };
             AddAppCookies(request);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -120,13 +135,13 @@ namespace SeewoAutoLogin
 
             var value = user.Value;
             Log($"账号校验用户对象: fields=[{DescribeFields(value)}]");
-            var token = GetString(value, "tokenId") ?? "";
-            if (string.IsNullOrWhiteSpace(token))
+            var validatedToken = GetString(value, "tokenId") ?? "";
+            if (string.IsNullOrWhiteSpace(validatedToken))
                 throw new InvalidDataException("登录响应缺少账号令牌。");
 
             return new QrLoginOutcome
             {
-                Token = token,
+                Token = validatedToken,
                 UserInfo = new SeewoUserInfo
                 {
                     AccountId = GetString(value, "resourceid") ?? "",
