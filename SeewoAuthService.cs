@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace SeewoAutoLogin
 {
     /// <summary>
-    /// 希沃教育平台认证服务（参考 Fast-EasiLogin）
+    /// 希沃教育平台认证服务
     /// </summary>
     public class SeewoAuthService : IDisposable
     {
@@ -126,7 +126,6 @@ namespace SeewoAutoLogin
             try
             {
                 var request = new HttpRequestMessage(HttpMethod.Get, USER_INFO_URL);
-                // 与 Fast-EasiLogin 的 fetch_user_info_with_token 一致
                 request.Headers.Add("X-auth-refer", "EnAppAndroid");
                 request.Headers.Add("X-Crypto-Version", "1");
                 request.Headers.Add("Cookie", $"x-auth-app=EasiNoteAndroid; x-auth-token={_token}");
