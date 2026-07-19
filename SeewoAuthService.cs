@@ -170,7 +170,6 @@ namespace SeewoAutoLogin
 
             _token = outcome.Token;
             _userInfo = outcome.UserInfo;
-            _tokenTime = DateTime.Now;
         }
 
         public void RestoreQrSession(string token, SeewoUserInfo userInfo, DateTimeOffset acquiredAt)
