@@ -23,9 +23,11 @@ namespace SeewoAutoLogin
         private readonly HttpClient _http;
         private string _token;
         private SeewoUserInfo _userInfo;
-        private DateTime _tokenTime;
 
-        public bool IsLoggedIn => !string.IsNullOrEmpty(_token) && (DateTime.Now - _tokenTime).TotalMinutes < 100;
+        /// <summary>
+        /// 本地只判断是否持有令牌；令牌真实有效性由希沃服务端在使用时决定。
+        /// </summary>
+        public bool IsLoggedIn => !string.IsNullOrWhiteSpace(_token);
         public string Token => _token;
         public SeewoUserInfo UserInfo => _userInfo;
 
