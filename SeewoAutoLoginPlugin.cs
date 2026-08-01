@@ -21,7 +21,6 @@ namespace SeewoAutoLogin
         private SeewoSsoGateway _gateway;
         private SettingsView _settingsView;
         private Timer _dailyTokenRefreshTimer;
-        private readonly object _diagnosticLogLock = new object();
 
         public PluginConfig Config { get; private set; } = new PluginConfig();
 
@@ -223,23 +222,8 @@ namespace SeewoAutoLogin
 
         private void WriteDiagnosticLog(string message)
         {
-            try
-            {
-                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                var directory = Path.Combine(baseDirectory, "PluginLogs", Id);
-                var path = Path.Combine(directory, DateTime.Now.ToString("yyyy-MM-dd") + ".log");
-                var line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [INFO] {message}{Environment.NewLine}";
-                lock (_diagnosticLogLock)
-                {
-                    Directory.CreateDirectory(directory);
-                    File.AppendAllText(path, line);
-                }
-                Log(message);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SeewoAutoLogin Log] {ex.GetType().Name}: {ex.Message}");
-            }
+            // 统一走宿主日志接口，写入 PluginLogs/<插件Id>/ 目录，不自行写文件。
+            Log(message);
         }
 
         private void StartDailyTokenRefresh()

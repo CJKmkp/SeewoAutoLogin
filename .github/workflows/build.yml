@@ -1,0 +1,19 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore: [ '**.md', 'LICENSE' ]
+  pull_request:
+    branches: [ main ]
+    paths-ignore: [ '**.md', 'LICENSE' ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: InkCanvasForClass/community/.github/workflows/plugin-build.yml@net6
+    with:
+      project: SeewoAutoLogin.csproj
+      plugin_id: com.icc.seewo-autologin
+      create_release: false
+    secrets: inherit
