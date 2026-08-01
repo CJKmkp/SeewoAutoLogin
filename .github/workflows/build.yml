@@ -9,6 +9,9 @@ on:
     paths-ignore: [ '**.md', 'LICENSE' ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     uses: InkCanvasForClass/community/.github/workflows/plugin-build.yml@net6
