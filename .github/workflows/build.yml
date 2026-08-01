@@ -15,5 +15,7 @@ jobs:
     with:
       project: SeewoAutoLogin.csproj
       plugin_id: com.icc.seewo-autologin
-      create_release: false
+      plugin_name: 希沃自动登录
+      plugin_description: '支持希沃官方二维码登录、多账号管理和 SSO 快捷登录'
+      auto_release: true
     secrets: inherit
