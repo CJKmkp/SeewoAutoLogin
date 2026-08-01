@@ -14,10 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="InkCanvas.PluginSdk">
-      <HintPath>lib\InkCanvas.PluginSdk.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <PackageReference Include="InkCanvas.PluginSdk" Version="1.7.19.9-ga6fafad8a9" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
