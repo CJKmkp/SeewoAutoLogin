@@ -92,6 +92,8 @@ namespace SeewoAutoLogin
             catch { }
         }
 
+        public bool StopTrustedEasiAgent() => TryStopTrustedEasiAgent();
+
         private bool TryStopTrustedEasiAgent()
         {
             foreach (var process in Process.GetProcessesByName("EasiAgent"))

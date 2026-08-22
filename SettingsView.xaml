@@ -95,6 +95,18 @@
                     </ikw:SimpleStackPanel>
                 </Border>
 
+                <!-- 阻止 EasiAgent 启动 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock x:Name="BlockAgentTitleText" FontSize="14" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="BlockAgentCheckBox" Checked="BlockAgentSetting_Changed" Unchecked="BlockAgentSetting_Changed"/>
+                        <TextBlock x:Name="BlockAgentStatusText" FontSize="11"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 希沃官方扫码登录 -->
                 <Border CornerRadius="8" Padding="16"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

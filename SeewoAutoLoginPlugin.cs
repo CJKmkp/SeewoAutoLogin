@@ -51,6 +51,16 @@ namespace SeewoAutoLogin
 
             LoadConfig();
 
+            // 若开启了“阻止 EasiAgent 启动”，应用映像劫持（幂等），避免下次启动抢占 SSO 端口。
+            if (Config.BlockEasiAgentStartup)
+            {
+                var blockError = EasiAgentStartupBlocker.ApplyBlock();
+                if (blockError != string.Empty)
+                    LogError($"阻止 EasiAgent 启动失败: {blockError}");
+                else
+                    WriteDiagnosticLog("[Block] 已应用 EasiAgent 启动阻止（映像劫持）");
+            }
+
             // 启动本地 SSO 网关（希沃白板连接此服务获取账号列表和 token）
             _gateway = new SeewoSsoGateway(_authService, () => Config, TryRestoreQrSession, GetVisibleAccounts, account =>
             {
@@ -216,6 +226,41 @@ namespace SeewoAutoLogin
             Config.ActiveAccountId = accountId;
             _authService.Logout();
             SaveConfig();
+        }
+
+        /// <summary>
+        /// 启用/停用“阻止 EasiAgent 启动”。返回空字符串表示成功，否则返回错误信息。
+        /// 失败时不改配置，保持界面与注册表状态一致。
+        /// </summary>
+        public string SetEasiAgentStartupBlock(bool enabled)
+        {
+            var error = enabled
+                ? EasiAgentStartupBlocker.ApplyBlock()
+                : EasiAgentStartupBlocker.RemoveBlock();
+
+            if (error != string.Empty)
+            {
+                WriteDiagnosticLog($"[Block] 设置阻止失败; enabled={enabled}; error={error}");
+                return error;
+            }
+
+            Config.BlockEasiAgentStartup = enabled;
+            SaveConfig();
+            WriteDiagnosticLog($"[Block] {(enabled ? "已应用" : "已解除")}; enabled={enabled}");
+
+            // 启用时顺带结束正在运行的可信 EasiAgent，若权限不足则由注册表在下次启动生效。
+            if (enabled) TryStopTrustedEasiAgent();
+            return string.Empty;
+        }
+
+        public bool TryStopTrustedEasiAgent()
+        {
+            try { return _gateway?.StopTrustedEasiAgent() ?? false; }
+            catch (Exception ex)
+            {
+                WriteDiagnosticLog($"[Block] 结束正在运行的 EasiAgent 失败; error={ex.GetType().Name}");
+                return false;
+            }
         }
 
         #endregion

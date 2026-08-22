@@ -25,6 +25,7 @@ namespace SeewoAutoLogin
         private DateTimeOffset _qrExpiresAt;
         private bool _qrConsentGranted;
         private bool _isUnlocked;
+        private bool _isApplyingBlockAgentSetting;
 
         public SettingsView(SeewoAuthService authService, QrLoginCoordinator qrLoginCoordinator, SeewoAutoLoginPlugin plugin)
         {
@@ -38,6 +39,7 @@ namespace SeewoAutoLogin
             Unloaded += SettingsView_Unloaded;
             ApplyLocalizedQrText();
             ApplyRotationSettings();
+            ApplyBlockAgentSettings();
 
             LoadPasswordSettings();
             CheckPasswordGate();
@@ -508,6 +510,57 @@ namespace SeewoAutoLogin
             if (!int.TryParse(item.Tag?.ToString(), out var size)) return;
             _plugin.Config.UserListRotationGroupSize = SeewoUserListRotationService.NormalizeGroupSize(size);
             _plugin.SaveConfig();
+        }
+
+        #endregion
+
+        #region 阻止 EasiAgent 启动
+
+        private void ApplyBlockAgentSettings()
+        {
+            BlockAgentTitleText.Text = Strings.BlockEasiAgentTitle;
+            BlockAgentCheckBox.Content = Strings.BlockEasiAgentOption;
+            BlockAgentCheckBox.IsChecked = _plugin.Config.BlockEasiAgentStartup;
+            BlockAgentStatusText.Text = Strings.BlockEasiAgentHint;
+        }
+
+        private async void BlockAgentSetting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isUnlocked || BlockAgentCheckBox == null || _isApplyingBlockAgentSetting) return;
+
+            var enable = BlockAgentCheckBox.IsChecked == true;
+
+            if (enable)
+            {
+                var dialog = new iNKORE.UI.WPF.Modern.Controls.ContentDialog
+                {
+                    Title = Strings.BlockEasiAgentConfirmTitle,
+                    Content = Strings.BlockEasiAgentConfirm,
+                    PrimaryButtonText = Strings.Continue,
+                    SecondaryButtonText = Strings.Cancel,
+                    Owner = Window.GetWindow(this)
+                };
+                _isApplyingBlockAgentSetting = true;
+                var result = await dialog.ShowAsync();
+                _isApplyingBlockAgentSetting = false;
+                if (result != iNKORE.UI.WPF.Modern.Controls.ContentDialogResult.Primary)
+                {
+                    BlockAgentCheckBox.IsChecked = false;
+                    return;
+                }
+            }
+
+            var error = _plugin.SetEasiAgentStartupBlock(enable);
+            BlockAgentStatusText.Text = error == string.Empty
+                ? (enable ? Strings.BlockEasiAgentStatusApplied : Strings.BlockEasiAgentStatusRemoved)
+                : string.Format(Strings.BlockEasiAgentStatusFailed, error);
+
+            // 应用/解除失败时，按配置实际状态回滚勾选。
+            if (error == string.Empty || _plugin.Config.BlockEasiAgentStartup == enable)
+                return;
+            _isApplyingBlockAgentSetting = true;
+            BlockAgentCheckBox.IsChecked = _plugin.Config.BlockEasiAgentStartup;
+            _isApplyingBlockAgentSetting = false;
         }
 
         #endregion
