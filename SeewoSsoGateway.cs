@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
@@ -29,6 +30,24 @@ namespace SeewoAutoLogin
 
         public int Port { get; set; } = 24300;
         public bool IsRunning => _listener?.IsListening == true;
+
+        private volatile bool _ucHostProxyEnabled;
+
+        /// <summary>UcHost 接管模式下，扫码登录 auth/checkToken 成功后触发（参数为请求 token 与云端响应 JSON）。</summary>
+        public event Action<string, string> ScanLoginCaptured;
+
+        private static readonly string[] HopByHopHeaders =
+        {
+            "Connection", "Keep-Alive", "Proxy-Connection", "Proxy-Authenticate",
+            "Proxy-Authorization", "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Host", "Date"
+        };
+
+        private static readonly HttpClient UcHostClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(130)
+        };
+
+        public void SetUcHostProxyEnabled(bool enabled) => _ucHostProxyEnabled = enabled;
 
         public SeewoSsoGateway(
             SeewoAuthService authService,
@@ -350,6 +369,13 @@ namespace SeewoAutoLogin
                     return;
                 }
 
+                // UcHost 接管代理：非 broker 路径在接管模式下透明转发到真实希沃云端
+                if (_ucHostProxyEnabled)
+                {
+                    await ProxyToUcHost(context);
+                    return;
+                }
+
                 // 404
                 resp.StatusCode = 404;
                 await WriteJson(resp, new { message = "not_found", statusCode = "404" });
@@ -373,6 +399,141 @@ namespace SeewoAutoLogin
             resp.ContentLength64 = bytes.Length;
             await resp.OutputStream.WriteAsync(bytes, 0, bytes.Length);
             resp.Close();
+        }
+
+        /// <summary>
+        /// 透明转发到真实希沃云端 https://id.seewo.com。二维码请求的 qrkey 通过 Set-Cookie
+        /// 回传给白板五，后续轮询与 checkToken 原样往返；auth/checkToken 成功后上报捕获事件。
+        /// </summary>
+        private async Task ProxyToUcHost(HttpListenerContext context)
+        {
+            var req = context.Request;
+            var resp = context.Response;
+
+            if ((req.Url?.AbsolutePath ?? "").EndsWith("/scan/qrcode", StringComparison.OrdinalIgnoreCase))
+                Log("UcHost 代理: 希沃白板请求登录二维码，接管已生效");
+
+            using var message = new HttpRequestMessage(new HttpMethod(req.HttpMethod), "https://id.seewo.com" + req.RawUrl);
+            CopyForwardHeaders(req, message);
+
+            byte[] body = Array.Empty<byte>();
+            if (!string.IsNullOrEmpty(req.HttpMethod) && !req.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+            {
+                using var input = new MemoryStream();
+                await req.InputStream.CopyToAsync(input);
+                body = input.ToArray();
+                if (body.Length > 0)
+                {
+                    message.Content = new ByteArrayContent(body);
+                    if (!string.IsNullOrEmpty(req.ContentType))
+                        message.Content.Headers.TryAddWithoutValidation("Content-Type", req.ContentType);
+                }
+            }
+
+            using var response = await UcHostClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
+            resp.StatusCode = (int)response.StatusCode;
+
+            foreach (var header in response.Headers)
+            {
+                if (IsHopByHop(header.Key)) continue;
+                foreach (var value in header.Value)
+                    resp.Headers.Add(header.Key, NormalizeRelayedHeader(header.Key, value));
+            }
+
+            var responseBody = await response.Content.ReadAsByteArrayAsync();
+            foreach (var header in response.Content.Headers)
+            {
+                if (header.Key == "Content-Type")
+                    resp.ContentType = string.Join(", ", header.Value);
+                else if (header.Key != "Content-Length" && !IsHopByHop(header.Key))
+                    foreach (var value in header.Value)
+                        resp.Headers.Add(header.Key, value);
+            }
+
+            resp.ContentLength64 = responseBody.LongLength;
+            await resp.OutputStream.WriteAsync(responseBody, 0, responseBody.Length);
+            resp.Close();
+
+            if (req.HttpMethod.Equals("POST", StringComparison.OrdinalIgnoreCase) &&
+                (req.Url?.AbsolutePath ?? "").EndsWith("/auth/checkToken", StringComparison.OrdinalIgnoreCase) &&
+                response.IsSuccessStatusCode && ScanLoginCaptured != null)
+            {
+                var token = ExtractToken(body);
+                var json = Encoding.UTF8.GetString(responseBody);
+                Log($"UcHost 代理: auth/checkToken 成功，上报扫码登录捕获; token-present={!string.IsNullOrEmpty(token)}");
+                ScanLoginCaptured?.Invoke(token, json);
+            }
+        }
+
+        private static void CopyForwardHeaders(HttpListenerRequest req, HttpRequestMessage message)
+        {
+            foreach (var key in req.Headers.AllKeys)
+            {
+                if (key == null || IsHopByHop(key)) continue;
+                var value = req.Headers[key];
+                if (string.IsNullOrEmpty(value)) continue;
+                if (key.Equals("Cookie", StringComparison.OrdinalIgnoreCase))
+                {
+                    message.Headers.TryAddWithoutValidation("Cookie", value);
+                }
+                else if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(key, "Content-Length", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue; // 由请求体内容接管
+                }
+                else
+                {
+                    message.Headers.TryAddWithoutValidation(key, value);
+                }
+            }
+        }
+
+        private static bool IsHopByHop(string name)
+        {
+            foreach (var h in HopByHopHeaders)
+            {
+                if (string.Equals(name, h, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 回传响应头时将 Set-Cookie 里的 Domain 与 Secure 去掉：本地是 http://127.0.0.1，
+        /// 云端给的 Domain/Secure 会让白板五无法按请求地址存/发 qrkey 这类 cookie。
+        /// </summary>
+        private static string NormalizeRelayedHeader(string name, string value)
+        {
+            if (!string.Equals(name, "Set-Cookie", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(value))
+                return value;
+
+            var parts = value.Split(';');
+            var kept = new List<string>(parts.Length);
+            foreach (var part in parts)
+            {
+                var trimmed = part.Trim();
+                var lower = trimmed.ToLowerInvariant();
+                if (lower.StartsWith("domain=", StringComparison.Ordinal))
+                    continue;
+                if (string.Equals(lower, "secure", StringComparison.Ordinal))
+                    continue;
+                if (trimmed.Length > 0) kept.Add(trimmed);
+            }
+            return string.Join("; ", kept);
+        }
+
+        private static string ExtractToken(byte[] body)
+        {
+            if (body == null || body.Length == 0) return "";
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("token", out var token))
+                    return token.GetString() ?? "";
+            }
+            catch
+            {
+            }
+            return "";
         }
 
         public void Dispose()

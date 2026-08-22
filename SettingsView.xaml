@@ -107,6 +107,18 @@
                     </ikw:SimpleStackPanel>
                 </Border>
 
+                <!-- 登录二维码接管 -->
+                <Border CornerRadius="8" Padding="16"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="8">
+                        <TextBlock x:Name="TakeoverQrTitleText" FontSize="14" FontWeight="SemiBold"/>
+                        <CheckBox x:Name="TakeoverQrCheckBox" Checked="TakeoverQrSetting_Changed" Unchecked="TakeoverQrSetting_Changed"/>
+                        <TextBlock x:Name="TakeoverQrStatusText" FontSize="11"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 希沃官方扫码登录 -->
                 <Border CornerRadius="8" Padding="16"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

@@ -26,6 +26,7 @@ namespace SeewoAutoLogin
         private bool _qrConsentGranted;
         private bool _isUnlocked;
         private bool _isApplyingBlockAgentSetting;
+        private bool _isApplyingTakeoverQrSetting;
 
         public SettingsView(SeewoAuthService authService, QrLoginCoordinator qrLoginCoordinator, SeewoAutoLoginPlugin plugin)
         {
@@ -40,6 +41,7 @@ namespace SeewoAutoLogin
             ApplyLocalizedQrText();
             ApplyRotationSettings();
             ApplyBlockAgentSettings();
+            ApplyTakeoverQrSettings();
 
             LoadPasswordSettings();
             CheckPasswordGate();
@@ -561,6 +563,57 @@ namespace SeewoAutoLogin
             _isApplyingBlockAgentSetting = true;
             BlockAgentCheckBox.IsChecked = _plugin.Config.BlockEasiAgentStartup;
             _isApplyingBlockAgentSetting = false;
+        }
+
+        #endregion
+
+        #region 登录二维码接管
+
+        private void ApplyTakeoverQrSettings()
+        {
+            TakeoverQrTitleText.Text = Strings.QrTakeoverTitle;
+            TakeoverQrCheckBox.Content = Strings.QrTakeoverOption;
+            TakeoverQrCheckBox.IsChecked = _plugin.Config.TakeOverLoginQr;
+            TakeoverQrStatusText.Text = Strings.QrTakeoverHint;
+        }
+
+        private async void TakeoverQrSetting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isUnlocked || TakeoverQrCheckBox == null || _isApplyingTakeoverQrSetting) return;
+
+            var enable = TakeoverQrCheckBox.IsChecked == true;
+
+            if (enable)
+            {
+                var dialog = new iNKORE.UI.WPF.Modern.Controls.ContentDialog
+                {
+                    Title = Strings.QrTakeoverConfirmTitle,
+                    Content = Strings.QrTakeoverConfirm,
+                    PrimaryButtonText = Strings.Continue,
+                    SecondaryButtonText = Strings.Cancel,
+                    Owner = Window.GetWindow(this)
+                };
+                _isApplyingTakeoverQrSetting = true;
+                var result = await dialog.ShowAsync();
+                _isApplyingTakeoverQrSetting = false;
+                if (result != iNKORE.UI.WPF.Modern.Controls.ContentDialogResult.Primary)
+                {
+                    TakeoverQrCheckBox.IsChecked = false;
+                    return;
+                }
+            }
+
+            var error = _plugin.SetTakeOverLoginQr(enable);
+            TakeoverQrStatusText.Text = error == string.Empty
+                ? (enable ? Strings.QrTakeoverStatusApplied : Strings.QrTakeoverStatusRemoved)
+                : string.Format(Strings.QrTakeoverStatusFailed, error);
+
+            // 失败时按配置实际状态回滚勾选。
+            if (error == string.Empty || _plugin.Config.TakeOverLoginQr == enable)
+                return;
+            _isApplyingTakeoverQrSetting = true;
+            TakeoverQrCheckBox.IsChecked = _plugin.Config.TakeOverLoginQr;
+            _isApplyingTakeoverQrSetting = false;
         }
 
         #endregion

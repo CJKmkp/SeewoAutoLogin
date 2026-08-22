@@ -36,22 +36,40 @@ namespace SeewoAutoLogin
         public static string RotationGroupSize => IsEnglish ? "Users per group" : "每组用户数";
         public static string RotationStatus(int group) => IsEnglish ? $"Current group: {group}" : $"当前列表：第 {group} 组";
         public static string RotationHint => IsEnglish ? "Disabled by default. Reopening within 10 seconds switches to the next group." : "默认关闭。窗口关闭后 10 秒内重新打开会切换到下一组。";
-        public static string BlockEasiAgentTitle => IsEnglish ? "Seewo assistant management" : "希沃助手管理";
+        public static string BlockEasiAgentTitle => IsEnglish ? "Seewo agent interception" : "希沃agent拦截";
         public static string BlockEasiAgentOption => IsEnglish ? "Block EasiAgent startup" : "阻止 EasiAgent 启动";
         public static string BlockEasiAgentHint => IsEnglish
-            ? "Stops the Seewo assistant from reopening so the local SSO port stays free for auto-login. Takes effect for the current user only. Seewo's built-in cloud login may stop working."
-            : "阻止希沃助手重新启动，保持本地 SSO 端口空闲以支持自动登录。仅对当前用户生效，可能影响希沃自带云登录。";
+            ? "Stops the Seewo agent from reopening so the local SSO port stays free for auto-login. Takes effect for the current user only. Seewo's built-in cloud login may stop working."
+            : "阻止希沃agent重新启动，保持本地 SSO 端口空闲以支持自动登录。仅对当前用户生效，可能影响希沃自带云登录。";
         public static string BlockEasiAgentConfirmTitle => IsEnglish ? "Confirm change" : "确认修改";
         public static string BlockEasiAgentConfirm => IsEnglish
-            ? "Enable this? The Seewo assistant will no longer start for the current user, which may affect Seewo's built-in cloud login. You can turn it off here at any time."
-            : "是否启用？启用后当前用户下希沃助手将无法启动，可能影响希沃自带云登录。可随时在本页关闭。";
+            ? "Enable this? The Seewo agent will no longer start for the current user, which may affect Seewo's built-in cloud login. You can turn it off here at any time."
+            : "是否启用？启用后当前用户下希沃agent将无法启动，可能影响希沃自带云登录。可随时在本页关闭。";
         public static string BlockEasiAgentStatusApplied => IsEnglish
             ? "Active — EasiAgent cannot start for the current user. An already-running instance will not be affected until it exits or is ended."
-            : "已生效 — 当前用户下希沃助手无法启动。正在运行的实例不受影响，待其退出或手动结束。";
+            : "已生效 — 当前用户下希沃agent无法启动。正在运行的实例不受影响，待其退出或手动结束。";
         public static string BlockEasiAgentStatusRemoved => IsEnglish
             ? "Removed — EasiAgent can start again."
-            : "已解除 — 希沃助手可正常启动。";
+            : "已解除 — 希沃agent可正常启动。";
         public static string BlockEasiAgentStatusFailed => IsEnglish
+            ? "Operation failed: {0}"
+            : "操作失败：{0}";
+        public static string QrTakeoverTitle => IsEnglish ? "Login QR takeover" : "登录二维码接管";
+        public static string QrTakeoverOption => IsEnglish ? "Take over Seewo Whiteboard login QR" : "接管希沃白板登录二维码";
+        public static string QrTakeoverHint => IsEnglish
+            ? "Redirects Seewo Whiteboard's cloud login host to this machine so QR, password and web logins flow through the local gateway and scanned accounts are captured automatically."
+            : "把希沃白板的云端登录宿主指向本机，使扫码/密码/网页登录都走本地网关代理，并自动捕获扫码账号。";
+        public static string QrTakeoverConfirmTitle => IsEnglish ? "Confirm change" : "确认修改";
+        public static string QrTakeoverConfirm => IsEnglish
+            ? "Enable? Seewo Whiteboard login will be served through this machine's local gateway. You can turn it off here at any time."
+            : "是否启用？希沃白板的登录将改走本机网关代理。可随时在本页关闭。";
+        public static string QrTakeoverStatusApplied => IsEnglish
+            ? "Active — Seewo Whiteboard login is served locally. Scanned accounts are captured automatically."
+            : "已生效 — 希沃白板登录已走本机网关，扫码账号会自动捕获。";
+        public static string QrTakeoverStatusRemoved => IsEnglish
+            ? "Removed — Seewo Whiteboard returns to direct cloud login."
+            : "已解除 — 希沃白板恢复直连云登录。";
+        public static string QrTakeoverStatusFailed => IsEnglish
             ? "Operation failed: {0}"
             : "操作失败：{0}";
     }

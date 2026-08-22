@@ -68,6 +68,7 @@ namespace SeewoAutoLogin
                 SaveConfig();
             }, OnQrTokenValidated, _userListRotation);
             _gateway.LogMessage += msg => Log(msg);
+            _gateway.ScanLoginCaptured += OnScanLoginCaptured;
             try
             {
                 _gateway.Start();
@@ -76,6 +77,16 @@ namespace SeewoAutoLogin
             catch (Exception ex)
             {
                 LogError($"SSO 网关启动失败: {ex.Message}");
+            }
+
+            // 若开启了“接管登录二维码”，启动后重新应用宿主覆盖（幂等）。
+            if (Config.TakeOverLoginQr)
+            {
+                var ucError = SetTakeOverLoginQr(true);
+                if (ucError != string.Empty)
+                    LogError($"接管登录二维码失败: {ucError}");
+                else
+                    WriteDiagnosticLog("[UcHost] 已应用登录宿主接管（透明代理）");
             }
         }
 
@@ -261,6 +272,139 @@ namespace SeewoAutoLogin
                 WriteDiagnosticLog($"[Block] 结束正在运行的 EasiAgent 失败; error={ex.GetType().Name}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 启用/停用“接管登录二维码”：把白板五的 UcHost 指向本地网关并开启透明代理。
+        /// 失败不改配置。启用时校验网关确实在运行，避免白板五登录失联。
+        /// </summary>
+        public string SetTakeOverLoginQr(bool enabled)
+        {
+            if (enabled && (_gateway == null || !_gateway.IsRunning))
+            {
+                WriteDiagnosticLog("[UcHost] 网关未运行，无法接管登录二维码");
+                return "SSO 网关未运行";
+            }
+
+            var error = enabled
+                ? EasiNoteUcHostOverride.Apply(GetLocalUcHost(), PluginConfigFolder)
+                : EasiNoteUcHostOverride.Remove(PluginConfigFolder);
+
+            if (error != string.Empty)
+            {
+                WriteDiagnosticLog($"[UcHost] 设置接管失败; enabled={enabled}; error={error}");
+                return error;
+            }
+
+            _gateway?.SetUcHostProxyEnabled(enabled);
+            Config.TakeOverLoginQr = enabled;
+            SaveConfig();
+            WriteDiagnosticLog($"[UcHost] {(enabled ? "已应用" : "已解除")}登录宿主接管; enabled={enabled}; path={EasiNoteUcHostOverride.FkvPath}; value={EasiNoteUcHostOverride.GetCurrentUcHost() ?? "<default>"}");
+            return string.Empty;
+        }
+
+        private string GetLocalUcHost() => $"http://127.0.0.1:{_gateway?.Port ?? 24300}";
+
+        /// <summary>
+        /// UcHost 代理把 auth/checkToken 的响应 JSON 上报后，直接解析并捕获进账号库——
+        /// 不二次校验，避免白板五会话上下文下签发的 token 在独立校验时失效导致漏存。
+        /// </summary>
+        private void OnScanLoginCaptured(string token, string checkTokenJson)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var outcome = ParseCheckTokenOutcome(checkTokenJson, token);
+                    if (outcome?.UserInfo == null || string.IsNullOrWhiteSpace(outcome.Token)) return;
+                    CaptureScannedAccount(outcome);
+                }
+                catch (Exception ex)
+                {
+                    WriteDiagnosticLog($"[QRCapture] 解析扫码登录结果失败; error={ex.GetType().Name}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// 对齐 SeewoQrLoginClient 的解析：payload 取 data 对象，UserInfo 内 tokenId 为有效令牌。
+        /// </summary>
+        private static QrLoginOutcome ParseCheckTokenOutcome(string json, string fallbackToken)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            var payload = TryGetProperty(root, "data", out var data) && data.ValueKind == JsonValueKind.Object
+                ? data : root;
+            var user = FindObject(payload, "UserInfo") ?? FindObject(payload, "userInfo") ??
+                       FindObject(root, "UserInfo") ?? FindObject(root, "userInfo");
+            if (user == null) return null;
+
+            var value = user.Value;
+            var tokenId = GetString(value, "tokenId") ?? fallbackToken;
+            if (string.IsNullOrWhiteSpace(tokenId)) return null;
+
+            return new QrLoginOutcome
+            {
+                Token = tokenId,
+                UserInfo = new SeewoUserInfo
+                {
+                    AccountId = GetString(value, "resourceid") ?? "",
+                    Uid = GetString(value, "resourceid") ?? "",
+                    UserName = GetString(value, "userName") ?? "",
+                    NickName = GetString(value, "cnName") ?? "",
+                    RealName = GetString(value, "cnName") ?? "",
+                    PhotoUrl = GetString(value, "photoUrl") ?? "",
+                    Phone = GetString(value, "phone") ?? ""
+                }
+            };
+        }
+
+        private static JsonElement? FindObject(JsonElement element, string name)
+        {
+            if (TryGetProperty(element, name, out var direct) && direct.ValueKind == JsonValueKind.Object)
+                return direct;
+            if (TryGetProperty(element, "data", out var data) && data.ValueKind == JsonValueKind.Object &&
+                TryGetProperty(data, name, out var nested) && nested.ValueKind == JsonValueKind.Object)
+                return nested;
+            return null;
+        }
+
+        private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+            value = default;
+            return false;
+        }
+
+        private static string GetString(JsonElement element, string name)
+        {
+            return TryGetProperty(element, name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString() : null;
+        }
+
+        private void CaptureScannedAccount(QrLoginOutcome outcome)
+        {
+            var account = new SeewoAccount
+            {
+                DisplayName = outcome.UserInfo.NickName ?? outcome.UserInfo.RealName
+                    ?? outcome.UserInfo.UserName ?? Strings.AccountFallback,
+                Username = !string.IsNullOrWhiteSpace(outcome.UserInfo.Phone)
+                    ? outcome.UserInfo.Phone
+                    : outcome.UserInfo.UserName ?? "",
+                Password = "",
+                UserInfo = outcome.UserInfo
+            };
+            // AddQrAccount 内含匹配去重、凭据保存与 ActiveAccount 兜底。
+            AddQrAccount(account, outcome);
+            WriteDiagnosticLog($"[QRCapture] 已捕获扫码登录账号; id={account.Id}; display={account.DisplayName}");
         }
 
         #endregion

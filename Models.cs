@@ -14,6 +14,7 @@ namespace SeewoAutoLogin
         public string ActiveAccountId { get; set; } = "";
         public bool AutoLogin { get; set; }
         public bool BlockEasiAgentStartup { get; set; }
+        public bool TakeOverLoginQr { get; set; }
         public bool UseAppPassword { get; set; }
         public bool UsePluginPassword { get; set; }
         public string PluginPasswordHash { get; set; } = "";
