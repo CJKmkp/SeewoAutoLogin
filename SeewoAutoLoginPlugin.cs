@@ -448,8 +448,16 @@ namespace SeewoAutoLogin
             try
             {
                 if (!File.Exists(ConfigPath)) return;
-                var json = File.ReadAllText(ConfigPath);
+                var content = File.ReadAllText(ConfigPath);
+                var isEncrypted = PluginConfigStore.IsEncrypted(content);
+                var json = content;
+                if (isEncrypted && !PluginConfigStore.TryDecrypt(content, out json))
+                    throw new InvalidDataException("配置文件无法解密或已损坏。");
                 Config = JsonSerializer.Deserialize<PluginConfig>(json) ?? new PluginConfig();
+
+                // Upgrade existing plaintext configuration on its next successful load.
+                if (!isEncrypted)
+                    SaveConfig();
             }
             catch (Exception ex)
             {
@@ -465,7 +473,7 @@ namespace SeewoAutoLogin
                 if (!Directory.Exists(PluginConfigFolder))
                     Directory.CreateDirectory(PluginConfigFolder);
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(ConfigPath, json);
+                PluginConfigStore.WriteEncrypted(ConfigPath, json);
             }
             catch (Exception ex)
             {
