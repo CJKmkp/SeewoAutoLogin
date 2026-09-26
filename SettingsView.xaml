@@ -76,6 +76,34 @@
                     </DockPanel>
                 </Border>
 
+                <!-- 登录区域 -->
+                <Border x:Name="LoginPanel" CornerRadius="8" Padding="16" Visibility="Collapsed"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <ikw:SimpleStackPanel Spacing="10">
+                        <TextBlock x:Name="LoginPanelTitle" Text="添加账号" FontSize="14" FontWeight="SemiBold"/>
+                        <StackPanel>
+                            <TextBlock Text="显示名称" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <TextBox x:Name="DisplayNameBox" Padding="8,6"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="手机号 / 用户名" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <TextBox x:Name="UsernameBox" Padding="8,6"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="密码" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
+                            <PasswordBox x:Name="PasswordBox" Padding="8,6"/>
+                        </StackPanel>
+                        <TextBlock x:Name="LoginStatus" FontSize="12"
+                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="LoginButton" Content="登录并保存" Click="LoginButton_Click"
+                                Padding="14,6" Margin="0,0,8,0"/>
+                            <Button Content="取消" Click="CancelLogin_Click" Padding="14,6"/>
+                        </StackPanel>
+                    </ikw:SimpleStackPanel>
+                </Border>
+
                 <!-- 用户列表轮换 -->
                 <Border CornerRadius="8" Padding="16"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
@@ -140,34 +168,6 @@
                             <Button x:Name="StartQrLoginButton" Click="StartQrLogin_Click" Padding="14,6" Margin="0,0,8,0"/>
                             <Button x:Name="RefreshQrLoginButton" Click="RefreshQrLogin_Click" Padding="14,6" Margin="0,0,8,0" Visibility="Collapsed"/>
                             <Button x:Name="CancelQrLoginButton" Click="CancelQrLogin_Click" Padding="14,6" Visibility="Collapsed"/>
-                        </StackPanel>
-                    </ikw:SimpleStackPanel>
-                </Border>
-
-                <!-- 登录区域 -->
-                <Border x:Name="LoginPanel" CornerRadius="8" Padding="16" Visibility="Collapsed"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                    <ikw:SimpleStackPanel Spacing="10">
-                        <TextBlock x:Name="LoginPanelTitle" Text="添加账号" FontSize="14" FontWeight="SemiBold"/>
-                        <StackPanel>
-                            <TextBlock Text="显示名称" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                            <TextBox x:Name="DisplayNameBox" Padding="8,6"/>
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="手机号 / 用户名" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                            <TextBox x:Name="UsernameBox" Padding="8,6"/>
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="密码" FontSize="12" Opacity="0.6" Margin="0,0,0,4"/>
-                            <PasswordBox x:Name="PasswordBox" Padding="8,6"/>
-                        </StackPanel>
-                        <TextBlock x:Name="LoginStatus" FontSize="12"
-                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
-                        <StackPanel Orientation="Horizontal">
-                            <Button x:Name="LoginButton" Content="登录并保存" Click="LoginButton_Click"
-                                Padding="14,6" Margin="0,0,8,0"/>
-                            <Button Content="取消" Click="CancelLogin_Click" Padding="14,6"/>
                         </StackPanel>
                     </ikw:SimpleStackPanel>
                 </Border>
