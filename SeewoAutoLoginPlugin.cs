@@ -448,7 +448,7 @@ namespace SeewoAutoLogin
             try
             {
                 if (!File.Exists(ConfigPath)) return;
-                var content = File.ReadAllText(ConfigPath);
+                var content = PluginConfigStore.ReadShared(ConfigPath);
                 var isEncrypted = PluginConfigStore.IsEncrypted(content);
                 var json = content;
                 if (isEncrypted && !PluginConfigStore.TryDecrypt(content, out json))

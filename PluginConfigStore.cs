@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 
 namespace SeewoAutoLogin
 {
@@ -15,6 +16,8 @@ namespace SeewoAutoLogin
         private const string FileHeader = "SEEWOCFG1:";
         private const int NonceLength = 12;
         private const int TagLength = 16;
+        private static readonly TimeSpan WriteLockTimeout = TimeSpan.FromSeconds(5);
+        private static readonly int[] WriteRetryDelaysMs = { 50, 150, 300, 500 };
 
         // The key is derived by the plugin rather than obtained from an operating-system
         // credential store. Keeping the format versioned allows future key rotation.
@@ -79,11 +82,108 @@ namespace SeewoAutoLogin
         public static bool IsEncrypted(string content) =>
             !string.IsNullOrWhiteSpace(content) && content.StartsWith(FileHeader, StringComparison.Ordinal);
 
+        public static string ReadShared(string path)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream, Encoding.UTF8, true);
+            return reader.ReadToEnd();
+        }
+
         public static void WriteEncrypted(string path, string json)
         {
-            var temporaryPath = path + ".tmp";
-            File.WriteAllText(temporaryPath, Encrypt(json), new UTF8Encoding(false));
-            File.Move(temporaryPath, path, true);
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("配置文件路径不能为空。", nameof(path));
+
+            var encrypted = Encrypt(json);
+            using var mutex = new Mutex(false, BuildMutexName(path));
+            var lockAcquired = false;
+            try
+            {
+                try
+                {
+                    lockAcquired = mutex.WaitOne(WriteLockTimeout);
+                }
+                catch (AbandonedMutexException)
+                {
+                    lockAcquired = true;
+                }
+
+                if (!lockAcquired)
+                    throw new IOException("等待配置文件写入锁超时。");
+
+                for (var attempt = 0; ; attempt++)
+                {
+                    var temporaryPath = BuildTemporaryPath(path);
+                    try
+                    {
+                        using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                        using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                        {
+                            writer.Write(encrypted);
+                        }
+
+                        ReplaceAtomically(temporaryPath, path);
+                        return;
+                    }
+                    catch (IOException) when (attempt < WriteRetryDelaysMs.Length)
+                    {
+                        TryDelete(temporaryPath);
+                        Thread.Sleep(WriteRetryDelaysMs[attempt]);
+                    }
+                    catch (UnauthorizedAccessException) when (attempt < WriteRetryDelaysMs.Length)
+                    {
+                        TryDelete(temporaryPath);
+                        Thread.Sleep(WriteRetryDelaysMs[attempt]);
+                    }
+                    catch
+                    {
+                        TryDelete(temporaryPath);
+                        throw;
+                    }
+                }
+            }
+            finally
+            {
+                if (lockAcquired)
+                    mutex.ReleaseMutex();
+            }
+        }
+
+        private static string BuildTemporaryPath(string path)
+        {
+            var directory = Path.GetDirectoryName(path) ?? "";
+            var fileName = Path.GetFileName(path);
+            return Path.Combine(directory, $"{fileName}.{Guid.NewGuid():N}.tmp");
+        }
+
+        private static string BuildMutexName(string path)
+        {
+            var normalizedPath = Path.GetFullPath(path).ToUpperInvariant();
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath)));
+            return $@"Local\SeewoAutoLogin.Config.{hash}";
+        }
+
+        private static void ReplaceAtomically(string temporaryPath, string path)
+        {
+            if (File.Exists(path))
+            {
+                File.Replace(temporaryPath, path, null, true);
+                return;
+            }
+
+            File.Move(temporaryPath, path);
+        }
+
+        private static void TryDelete(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch
+            {
+            }
         }
     }
 }
