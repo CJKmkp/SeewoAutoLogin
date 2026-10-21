@@ -5,8 +5,11 @@
   "Description": "支持希沃官方二维码登录、多账号管理和 SSO 快捷登录",
   "Author": "CJKmkp",
   "EntranceAssembly": "SeewoAutoLogin.dll",
-  "ApiVersion": "1.0.0",
+  "ApiVersion": "1.14.0",
   "Url": "https://github.com/CJKmkp/SeewoAutoLogin",
-  "Permissions": ["Network", "Settings"],
+  "Permissions": [
+    "Network",
+    "Settings"
+  ],
   "Dependencies": []
 }
