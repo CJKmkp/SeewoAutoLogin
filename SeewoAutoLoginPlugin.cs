@@ -1,7 +1,6 @@
 using Ink_Canvas.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -441,18 +440,19 @@ namespace SeewoAutoLogin
 
         #region 配置持久化
 
-        private string ConfigPath => Path.Combine(PluginConfigFolder, "config.json");
 
         public void LoadConfig()
         {
             try
             {
-                if (!File.Exists(ConfigPath)) return;
-                var content = File.ReadAllText(ConfigPath);
+                if (Host?.Configuration == null)
+                    throw new InvalidOperationException("宿主未提供统一配置存储接口。");
+                if (!Host.Configuration.Exists("config.json")) return;
+                var content = Host.Configuration.ReadAllText("config.json");
                 var isEncrypted = PluginConfigStore.IsEncrypted(content);
                 var json = content;
                 if (isEncrypted && !PluginConfigStore.TryDecrypt(content, out json))
-                    throw new InvalidDataException("配置文件无法解密或已损坏。");
+                    throw new InvalidOperationException("配置文件无法解密或已损坏。");
                 Config = JsonSerializer.Deserialize<PluginConfig>(json) ?? new PluginConfig();
 
                 // Upgrade existing plaintext configuration on its next successful load.
@@ -470,10 +470,11 @@ namespace SeewoAutoLogin
         {
             try
             {
-                if (!Directory.Exists(PluginConfigFolder))
-                    Directory.CreateDirectory(PluginConfigFolder);
+                if (Host?.Configuration == null)
+                    throw new InvalidOperationException("宿主未提供统一配置存储接口。");
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                PluginConfigStore.WriteEncrypted(ConfigPath, json);
+                // 加密格式仍由插件负责；文件路径、目录管理与原子写入统一交给宿主。
+                Host.Configuration.WriteAllText("config.json", PluginConfigStore.Encrypt(json));
             }
             catch (Exception ex)
             {
