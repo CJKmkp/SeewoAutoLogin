@@ -2,6 +2,7 @@ using Ink_Canvas.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
@@ -441,14 +442,48 @@ namespace SeewoAutoLogin
         #region 配置持久化
 
 
+        // 通过反射访问新版本 SDK 的 Configuration 属性，保持本项目可用现有 SDK 包编译。
+        // manifest 要求 API 1.14.0，因此运行时宿主必须实现 IPluginHost.Configuration。
+        private object GetConfigurationStore()
+        {
+            var property = Host?.GetType().GetProperty("Configuration", BindingFlags.Instance | BindingFlags.Public);
+            var store = property?.GetValue(Host);
+            if (store == null)
+                throw new InvalidOperationException("宿主未提供统一配置存储接口，请更新至 API 1.14.0 或更高版本。");
+            return store;
+        }
+
+        private bool ConfigurationExists(string relativePath) =>
+            (bool)InvokeConfigurationStore("Exists", relativePath);
+
+        private string ReadConfigurationText(string relativePath) =>
+            (string)InvokeConfigurationStore("ReadAllText", relativePath);
+
+        private void WriteConfigurationText(string relativePath, string content) =>
+            InvokeConfigurationStore("WriteAllText", relativePath, content);
+
+        private object InvokeConfigurationStore(string methodName, params object[] arguments)
+        {
+            var store = GetConfigurationStore();
+            var method = store.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
+            if (method == null)
+                throw new MissingMethodException(store.GetType().FullName, methodName);
+            try
+            {
+                return method.Invoke(store, arguments);
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException != null)
+            {
+                throw ex.InnerException;
+            }
+        }
+
         public void LoadConfig()
         {
             try
             {
-                if (Host?.Configuration == null)
-                    throw new InvalidOperationException("宿主未提供统一配置存储接口。");
-                if (!Host.Configuration.Exists("config.json")) return;
-                var content = Host.Configuration.ReadAllText("config.json");
+                if (!ConfigurationExists("config.json")) return;
+                var content = ReadConfigurationText("config.json");
                 var isEncrypted = PluginConfigStore.IsEncrypted(content);
                 var json = content;
                 if (isEncrypted && !PluginConfigStore.TryDecrypt(content, out json))
@@ -470,11 +505,9 @@ namespace SeewoAutoLogin
         {
             try
             {
-                if (Host?.Configuration == null)
-                    throw new InvalidOperationException("宿主未提供统一配置存储接口。");
                 var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                // 加密格式仍由插件负责；文件路径、目录管理与原子写入统一交给宿主。
-                Host.Configuration.WriteAllText("config.json", PluginConfigStore.Encrypt(json));
+                // 通过宿主统一配置存储接口保存；加密格式仍由插件负责。
+                WriteConfigurationText("config.json", PluginConfigStore.Encrypt(json));
             }
             catch (Exception ex)
             {
