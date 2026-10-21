@@ -60,7 +60,8 @@ ICC-CE 插件，用于管理希沃账号，并为希沃白板提供快捷登录�
   PluginConfigs/com.icc.seewo-autologin/config.json
   ```
 
-  配置文件由插件使用自身的加密格式加密后保存；不使用 Windows 系统加密，也不绑定到某个 Windows 用户。
+  配置文件通过宿主统一的 `IPluginHost.Configuration` 存储接口读写；插件仍使用自身的 `SEEWOCFG1:` 加密格式加密内容，不使用 Windows 系统加密，也不绑定到某个 Windows 用户。
+- 此版本要求 ICC-CE 宿主支持 Plugin SDK API `1.14.0` 或更高版本；旧宿主不会提供统一配置存储接口。
 
 - 扫码登录令牌使用插件的本地会话存储机制保存，不写入诊断日志。
 - 插件诊断日志会记录流程状态和错误类型，但不会记录二维码会话密钥或令牌。
