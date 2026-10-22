@@ -191,9 +191,9 @@ namespace SeewoAutoLogin
                     // 权限不足（需要管理员 / URL ACL）：换端口或重试都无意义。
                     if (IsAccessDenied(ex))
                     {
-                        Log($"[ERROR] SSO 网关无法监听端口 {port}：拒绝访问（需要管理员权限）");
+                        Log($"[ERROR] SSO 网关无法监听端口 {port}：拒绝访问。请检查是否已运行管理员一次性配置脚本 Configure-SeewoSsoGateway.ps1，并确认当前 Windows 用户拥有 URL ACL。");
                         throw new InvalidOperationException(
-                            $"以当前权限无法监听本地 SSO 网关（拒绝访问，端口 {port}）。请以管理员身份运行 ICC-CE。", ex);
+                            $"当前用户无权监听本地 SSO 网关端口 {port}。通常只需以管理员身份运行插件附带的 Configure-SeewoSsoGateway.ps1 一次，为当前用户配置 URL ACL；之后 ICC-CE 可普通权限运行。请勿长期以管理员身份运行 ICC-CE。", ex);
                     }
 
                     if (!allowEasiAgentHandoff) return false;
