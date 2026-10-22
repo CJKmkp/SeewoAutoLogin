@@ -81,9 +81,18 @@ namespace SeewoAutoLogin
 
         public static void WriteEncrypted(string path, string json)
         {
-            var temporaryPath = path + ".tmp";
-            File.WriteAllText(temporaryPath, Encrypt(json), new UTF8Encoding(false));
-            File.Move(temporaryPath, path, true);
+            // Unique temp files prevent overlapping saves from sharing/truncating one .tmp file.
+            var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(temporaryPath, Encrypt(json), new UTF8Encoding(false));
+                File.Move(temporaryPath, path, true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                    File.Delete(temporaryPath);
+            }
         }
     }
 }
