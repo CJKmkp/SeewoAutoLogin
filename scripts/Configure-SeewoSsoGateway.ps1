@@ -79,7 +79,7 @@ if (-not $active) {
         Write-Host "Backed up hosts to: $backupPath"
     }
     $line = "`r`n$loopback $hostName $marker`r`n"
-    $appendBytes = [System.Text.Encoding]::ASCII.GetBytes($line)
+    $appendBytes = $encoding.GetBytes($line)
     $stream = [System.IO.File]::Open($hostsPath, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
     try { $stream.Write($appendBytes, 0, $appendBytes.Length) } finally { $stream.Dispose() }
     Write-Host "Added hosts mapping: $hostName -> $loopback"
