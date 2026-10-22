@@ -81,9 +81,11 @@ namespace SeewoAutoLogin
 
         public static void WriteEncrypted(string path, string json)
         {
-            var temporaryPath = path + ".tmp";
-            File.WriteAllText(temporaryPath, Encrypt(json), new UTF8Encoding(false));
-            File.Move(temporaryPath, path, true);
+            // Write directly to config.json instead of writing a .tmp file and replacing
+            // the destination with File.Move. This avoids the replace/rename failure path
+            // observed when another process briefly locks the existing destination file.
+            // SaveConfig serializes writes within this plugin instance.
+            File.WriteAllText(path, Encrypt(json), new UTF8Encoding(false));
         }
     }
 }
