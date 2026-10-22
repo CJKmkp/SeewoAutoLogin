@@ -477,10 +477,57 @@ namespace SeewoAutoLogin
 
         private void SettingsView_Unloaded(object sender, RoutedEventArgs e)
         {
+            // CheckBox/ComboBox 的事件可能在视图关闭或重建期间被跳过。
+            // 关闭前将不涉及系统副作用的设置控件同步回配置对象，作为最后一次持久化保障。
+            PersistPassiveSettings();
+
             _passwordLoginCancellation?.Cancel();
             _qrLoginCancellation?.Cancel();
             _qrLoginCoordinator.Cancel();
             _qrCountdownTimer.Stop();
+        }
+
+        private void PersistPassiveSettings()
+        {
+            if (!_isUnlocked || _plugin?.Config == null)
+                return;
+
+            var config = _plugin.Config;
+            var changed = false;
+
+            if (RotationEnabledCheckBox != null)
+            {
+                var enabled = RotationEnabledCheckBox.IsChecked == true;
+                if (config.UserListRotationEnabled != enabled)
+                {
+                    config.UserListRotationEnabled = enabled;
+                    changed = true;
+                }
+            }
+
+            if (RotationGroupSizeComboBox?.SelectedItem is ComboBoxItem item &&
+                int.TryParse(item.Tag?.ToString(), out var groupSize))
+            {
+                groupSize = SeewoUserListRotationService.NormalizeGroupSize(groupSize);
+                if (config.UserListRotationGroupSize != groupSize)
+                {
+                    config.UserListRotationGroupSize = groupSize;
+                    changed = true;
+                }
+            }
+
+            if (UsePluginPasswordCheckBox != null)
+            {
+                var usePassword = UsePluginPasswordCheckBox.IsChecked == true;
+                if (config.UsePluginPassword != usePassword)
+                {
+                    config.UsePluginPassword = usePassword;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                _plugin.SaveConfig();
         }
 
         #endregion
