@@ -442,6 +442,7 @@ namespace SeewoAutoLogin
         #region 配置持久化
 
         private string ConfigPath => Path.Combine(PluginConfigFolder, "config.json");
+        private readonly object _configSaveSync = new object();
 
         public void LoadConfig()
         {
@@ -470,10 +471,16 @@ namespace SeewoAutoLogin
         {
             try
             {
-                if (!Directory.Exists(PluginConfigFolder))
-                    Directory.CreateDirectory(PluginConfigFolder);
-                var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-                PluginConfigStore.WriteEncrypted(ConfigPath, json);
+                lock (_configSaveSync)
+                {
+                    if (!Directory.Exists(PluginConfigFolder))
+                        Directory.CreateDirectory(PluginConfigFolder);
+
+                    // 账号登录、后台 Token 刷新和设置 UI 都可能触发保存。
+                    // 串行化配置序列化与落盘，避免并发写入同一临时文件导致设置保存失败。
+                    var json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
+                    PluginConfigStore.WriteEncrypted(ConfigPath, json);
+                }
             }
             catch (Exception ex)
             {
