@@ -104,15 +104,8 @@ namespace SeewoAutoLogin
                         if (tokens.Length >= 2 && tokens[0] == LoopbackIp &&
                             tokens.Skip(1).Any(t => string.Equals(t, HostName, StringComparison.OrdinalIgnoreCase)))
                         {
-                            // 已有有效映射：补上标记，便于卸载时精确清理。
-                            if (lines[i].IndexOf(Marker, StringComparison.Ordinal) < 0)
-                            {
-                                BackupOnce();
-                                // 只补标记、不重写整行：这一行上可能还挂着用户自己的其它主机名。
-                                lines[i] = lines[i].TrimEnd() + " " + Marker;
-                                changed = true;
-                            }
-                            if (changed) WriteAtomic(lines, encoding);
+                            // 已有有效映射就直接接受，不再为了补充卸载标记而改写系统 hosts。
+                            // 这样完成一次性管理员配置后，普通权限启动不会再次尝试写 hosts。
                             return true;
                         }
                     }
